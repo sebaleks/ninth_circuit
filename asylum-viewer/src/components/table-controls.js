@@ -26,7 +26,7 @@ export default function TableControls({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const hiddenCount = hiddenColumns.size
+  const selectedCount = columnOrder.length - hiddenColumns.size
 
   return (
     <div className="flex flex-col px-4 sm:px-7 bg-filter-bg border-b border-border text-xs font-mono shrink-0">
@@ -39,11 +39,9 @@ export default function TableControls({
           className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-text hover:border-accent hover:text-accent transition-colors tracking-wider uppercase"
         >
           <span className="font-semibold">Filter Columns</span>
-          {hiddenCount > 0 && (
-            <span className="bg-accent text-[#fff] rounded-full w-4 h-4 flex items-center justify-center text-[10px] leading-none">
-              {hiddenCount}
-            </span>
-          )}
+          <span className="bg-accent text-[#fff] rounded-full w-4 h-4 flex items-center justify-center text-[10px] leading-none">
+            {selectedCount}
+          </span>
         </button>
 
         {showColPanel && (
