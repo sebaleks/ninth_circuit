@@ -55,44 +55,43 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
   })
 
   const fetchData = useCallback(async (currentPage, currentFilters, currentSearch) => {
-    // setLoading(true)
-    // const from = (currentPage - 1) * PAGE_SIZE
-    // const to = from + PAGE_SIZE - 1
+    setLoading(true)
+    const from = (currentPage - 1) * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
 
-    // let query = supabaseRef.current
-    //   .from('asylum_cases')
-    //   .select(VISIBLE_COLUMNS.join(','), { count: 'exact' })
-    //   .order('date_filed', { ascending: false })
+    let query = supabaseRef.current
+      .from('asylum_cases')
+      .select(VISIBLE_COLUMNS.join(','), { count: 'exact' })
+      .order('date_filed', { ascending: false })
 
-    // query = applyFilters(query, currentFilters)
+    query = applyFilters(query, currentFilters)
 
-    // // Global search across key text columns
-    // if (currentSearch.trim()) {
-    //   const term = `%${currentSearch.trim()}%`
-    //   query = query.or(
-    //     `docket_no.ilike.${term},country_of_origin.ilike.${term},final_disposition.ilike.${term}`
-    //   )
-    // }
+    // Global search across key text columns
+    if (currentSearch.trim()) {
+      const term = `%${currentSearch.trim()}%`
+      query = query.or(
+        `docket_no.ilike.${term},country_of_origin.ilike.${term},final_disposition.ilike.${term}`
+      )
+    }
 
-    // query = query.range(from, to)
+    query = query.range(from, to)
 
-    // const { data, count, error } = await query
-    // if (error) {
-    //   console.error(error)
-    //   setLoading(false)
-    //   return
-    // }
-    // setRows(data || [])
-    // setTotalCount(count || 0)
-    // setLoading(false)
+    const { data, count, error } = await query
+    if (error) {
+      console.error(error)
+      setLoading(false)
+      return
+    }
+    setRows(data || [])
+    setTotalCount(count || 0)
+    setLoading(false)
   }, [])
 
   // Re-fetch when filters or page change
   useEffect(() => {
-    // TODO: restore once Supabase credentials are available
-    // const hasActiveFilters = Object.values(filters).some(v => v !== '' && v !== null && v !== undefined)
-    // if (page === 1 && !hasActiveFilters && !search.trim()) return
-    // fetchData(page, filters, search)
+    const hasActiveFilters = Object.values(filters).some(v => v !== '' && v !== null && v !== undefined)
+    if (page === 1 && !hasActiveFilters && !search.trim()) return
+    fetchData(page, filters, search)
   }, [page, filters, search, fetchData])
 
   const handleFilterChange = (col, value) => {
