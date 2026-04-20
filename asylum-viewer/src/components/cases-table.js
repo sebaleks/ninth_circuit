@@ -89,10 +89,9 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
 
   // Re-fetch when filters or page change
   useEffect(() => {
-    // TODO: restore once Supabase credentials are available
-    // const hasActiveFilters = Object.values(filters).some(v => v !== '' && v !== null && v !== undefined)
-    // if (page === 1 && !hasActiveFilters && !search.trim()) return
-    // fetchData(page, filters, search)
+    const hasActiveFilters = Object.values(filters).some(v => v !== '' && v !== null && v !== undefined)
+    if (page === 1 && !hasActiveFilters && !search.trim()) return
+    fetchData(page, filters, search)
   }, [page, filters, search, fetchData])
 
   const handleFilterChange = (col, value) => {
