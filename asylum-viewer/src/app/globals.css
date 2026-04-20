@@ -16,7 +16,8 @@
   --color-yes-text: #2d6e2d;
   --color-no-bg: #eeede9;
   --color-no-text: #7a7770;
-  --color-row-hover: #f0ede6;
+  --color-row-alt: #f3f1ec;
+  --color-row-hover: #e8e3d8;
   --color-drawer-bg: #ffffff;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -40,7 +41,8 @@
     --color-yes-text: #6abf6a;
     --color-no-bg: #252320;
     --color-no-text: #7a7770;
-    --color-row-hover: #211f1c;
+    --color-row-alt: #1e1c19;
+    --color-row-hover: #2a2723;
     --color-drawer-bg: #1a1916;
   }
 }

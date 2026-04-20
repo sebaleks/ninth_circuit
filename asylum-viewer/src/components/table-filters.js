@@ -1,7 +1,7 @@
 import { getFilterType } from '@/lib/columns'
 import { BINARY_COLS } from '@/lib/filters'
 
-export default function TableFilters({ columns, filters, onFilterChange }) {
+export default function TableFilters({ columns, filters, onFilterChange, frozenCols = 0, columnLeftOffsets = {} }) {
   const renderFilter = (col) => {
     const filterType = getFilterType(col)
     if (filterType === 'none') return null
@@ -73,11 +73,22 @@ export default function TableFilters({ columns, filters, onFilterChange }) {
 
   return (
     <tr>
-      {columns.map(col => (
-        <th key={col} className="bg-filter-bg px-3 py-2 border-b-2 border-border border-r border-r-border">
-          {renderFilter(col)}
-        </th>
-      ))}
+      {columns.map((col, i) => {
+        const isSticky = i < frozenCols
+        const isLastFrozen = frozenCols > 0 && i === frozenCols - 1
+        return (
+          <th
+            key={col}
+            style={isSticky ? { position: 'sticky', left: columnLeftOffsets[col], zIndex: 20 } : {}}
+            className={[
+              'bg-filter-bg px-3 py-2 border-b-2 border-border border-r border-r-border',
+              isLastFrozen ? 'shadow-[2px_0_6px_rgba(0,0,0,0.15)]' : '',
+            ].filter(Boolean).join(' ')}
+          >
+            {renderFilter(col)}
+          </th>
+        )
+      })}
     </tr>
   )
 }

@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { VISIBLE_COLUMNS } from '@/lib/columns'
+import { VISIBLE_COLUMNS, getColumnWidth } from '@/lib/columns'
 import { applyFilters } from '@/lib/filters'
 import AppHeader from './app-header'
+import TableControls from './table-controls'
 import TableHeader from './table-header'
 import TableFilters from './table-filters'
 import TableBody from './table-body'
@@ -14,6 +15,16 @@ import CaseCard from './case-card'
 
 const PAGE_SIZE = 50
 
+function computeLeftOffsets(columns, frozenCols) {
+  const offsets = {}
+  let left = 0
+  columns.slice(0, frozenCols).forEach(col => {
+    offsets[col] = left
+    left += getColumnWidth(col)
+  })
+  return offsets
+}
+
 export default function CasesTable({ initialRows, totalCount: initialTotal }) {
   const [rows, setRows] = useState(initialRows)
   const [totalCount, setTotalCount] = useState(initialTotal)
@@ -22,50 +33,66 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [selectedRow, setSelectedRow] = useState(null)
+
+  // Column management
+  const [columnOrder, setColumnOrder] = useState(VISIBLE_COLUMNS)
+  const [hiddenColumns, setHiddenColumns] = useState(new Set())
+  const [frozenCols, setFrozenCols] = useState(0)
+  const [frozenRows, setFrozenRows] = useState(0)
+
   const supabaseRef = useRef(createClient())
   const searchTimerRef = useRef(null)
+  const theadRef = useRef(null)
+  const [theadHeight, setTheadHeight] = useState(0)
 
+  const visibleColumns = columnOrder.filter(c => !hiddenColumns.has(c))
+  const columnLeftOffsets = computeLeftOffsets(visibleColumns, frozenCols)
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
+  // Measure thead height whenever columns change
+  useEffect(() => {
+    if (theadRef.current) setTheadHeight(theadRef.current.offsetHeight)
+  })
+
   const fetchData = useCallback(async (currentPage, currentFilters, currentSearch) => {
-    setLoading(true)
-    const from = (currentPage - 1) * PAGE_SIZE
-    const to = from + PAGE_SIZE - 1
+    // setLoading(true)
+    // const from = (currentPage - 1) * PAGE_SIZE
+    // const to = from + PAGE_SIZE - 1
 
-    let query = supabaseRef.current
-      .from('asylum_cases')
-      .select(VISIBLE_COLUMNS.join(','), { count: 'exact' })
-      .order('date_filed', { ascending: false })
+    // let query = supabaseRef.current
+    //   .from('asylum_cases')
+    //   .select(VISIBLE_COLUMNS.join(','), { count: 'exact' })
+    //   .order('date_filed', { ascending: false })
 
-    query = applyFilters(query, currentFilters)
+    // query = applyFilters(query, currentFilters)
 
-    // Global search across key text columns
-    if (currentSearch.trim()) {
-      const term = `%${currentSearch.trim()}%`
-      query = query.or(
-        `docket_no.ilike.${term},country_of_origin.ilike.${term},final_disposition.ilike.${term}`
-      )
-    }
+    // // Global search across key text columns
+    // if (currentSearch.trim()) {
+    //   const term = `%${currentSearch.trim()}%`
+    //   query = query.or(
+    //     `docket_no.ilike.${term},country_of_origin.ilike.${term},final_disposition.ilike.${term}`
+    //   )
+    // }
 
-    query = query.range(from, to)
+    // query = query.range(from, to)
 
-    const { data, count, error } = await query
-    if (error) {
-      console.error(error)
-      setLoading(false)
-      return
-    }
-    setRows(data || [])
-    setTotalCount(count || 0)
-    setLoading(false)
+    // const { data, count, error } = await query
+    // if (error) {
+    //   console.error(error)
+    //   setLoading(false)
+    //   return
+    // }
+    // setRows(data || [])
+    // setTotalCount(count || 0)
+    // setLoading(false)
   }, [])
 
   // Re-fetch when filters or page change
   useEffect(() => {
-    // Skip initial load — we already have server-fetched data for page 1 with no filters
-    const hasActiveFilters = Object.values(filters).some(v => v !== '' && v !== null && v !== undefined)
-    if (page === 1 && !hasActiveFilters && !search.trim()) return
-    fetchData(page, filters, search)
+    // TODO: restore once Supabase credentials are available
+    // const hasActiveFilters = Object.values(filters).some(v => v !== '' && v !== null && v !== undefined)
+    // if (page === 1 && !hasActiveFilters && !search.trim()) return
+    // fetchData(page, filters, search)
   }, [page, filters, search, fetchData])
 
   const handleFilterChange = (col, value) => {
@@ -86,6 +113,26 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
     setPage(newPage)
   }
 
+  const handleToggleColumn = (col) => {
+    setHiddenColumns(prev => {
+      const next = new Set(prev)
+      if (next.has(col)) next.delete(col)
+      else next.add(col)
+      return next
+    })
+  }
+
+  const handleColumnReorder = (fromCol, toCol) => {
+    setColumnOrder(prev => {
+      const arr = [...prev]
+      const fromIdx = arr.indexOf(fromCol)
+      const toIdx = arr.indexOf(toCol)
+      arr.splice(fromIdx, 1)
+      arr.splice(toIdx, 0, fromCol)
+      return arr
+    })
+  }
+
   return (
     <div className="flex flex-col h-screen">
       <AppHeader
@@ -93,6 +140,17 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
         filteredCount={totalCount}
         searchValue={search}
         onSearchChange={handleSearchChange}
+      />
+
+      <TableControls
+        columnOrder={columnOrder}
+        hiddenColumns={hiddenColumns}
+        onToggleColumn={handleToggleColumn}
+        frozenCols={frozenCols}
+        frozenRows={frozenRows}
+        onFrozenColsChange={setFrozenCols}
+        onFrozenRowsChange={setFrozenRows}
+        visibleCount={visibleColumns.length}
       />
 
       {/* Mobile card view */}
@@ -114,11 +172,30 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
       <div className="hidden sm:block flex-1 overflow-auto relative">
         <div className={`transition-opacity ${loading ? 'opacity-50' : 'opacity-100'}`}>
           <table className="w-full border-collapse text-sm">
-            <thead className="sticky top-0 z-10">
-              <TableHeader columns={VISIBLE_COLUMNS} />
-              <TableFilters columns={VISIBLE_COLUMNS} filters={filters} onFilterChange={handleFilterChange} />
+            <thead ref={theadRef} className="sticky top-0 z-10">
+              <TableHeader
+                columns={visibleColumns}
+                frozenCols={frozenCols}
+                columnLeftOffsets={columnLeftOffsets}
+                onColumnReorder={handleColumnReorder}
+              />
+              <TableFilters
+                columns={visibleColumns}
+                filters={filters}
+                onFilterChange={handleFilterChange}
+                frozenCols={frozenCols}
+                columnLeftOffsets={columnLeftOffsets}
+              />
             </thead>
-            <TableBody rows={rows} columns={VISIBLE_COLUMNS} onRowClick={setSelectedRow} />
+            <TableBody
+              rows={rows}
+              columns={visibleColumns}
+              onRowClick={setSelectedRow}
+              frozenCols={frozenCols}
+              frozenRows={frozenRows}
+              columnLeftOffsets={columnLeftOffsets}
+              theadHeight={theadHeight}
+            />
           </table>
         </div>
       </div>
