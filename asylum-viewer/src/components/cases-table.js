@@ -203,6 +203,7 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
         onFrozenColsChange={setFrozenCols}
         onFrozenRowsChange={setFrozenRows}
         visibleCount={visibleColumns.length}
+        onResetLayout={handleResetLayout}
       />
 
       {/* Mobile card view */}
