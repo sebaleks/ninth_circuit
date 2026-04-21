@@ -20,8 +20,19 @@ export async function loadPreferences(supabase) {
   if (error || !data?.table_layout) return DEFAULT_LAYOUT
 
   const saved = data.table_layout
+
+  // Merge new columns (added since last save) into saved order at their natural position
+  const savedSet = new Set(saved.columnOrder ?? [])
+  const mergedOrder = [...(saved.columnOrder ?? [])]
+  VISIBLE_COLUMNS.forEach((col, i) => {
+    if (!savedSet.has(col)) {
+      const insertAt = Math.min(i, mergedOrder.length)
+      mergedOrder.splice(insertAt, 0, col)
+    }
+  })
+
   return {
-    columnOrder: saved.columnOrder ?? DEFAULT_LAYOUT.columnOrder,
+    columnOrder: mergedOrder,
     hiddenColumns: saved.hiddenColumns ?? DEFAULT_LAYOUT.hiddenColumns,
     frozenCols: saved.frozenCols ?? DEFAULT_LAYOUT.frozenCols,
     frozenRows: saved.frozenRows ?? DEFAULT_LAYOUT.frozenRows,

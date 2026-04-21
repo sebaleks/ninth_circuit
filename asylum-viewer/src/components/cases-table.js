@@ -46,6 +46,7 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
   const saveTimerRef = useRef(null)
   const theadRef = useRef(null)
   const [theadHeight, setTheadHeight] = useState(0)
+  const isMounted = useRef(false)
 
   // Load preferences on mount
   useEffect(() => {
@@ -87,42 +88,40 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
   })
 
   const fetchData = useCallback(async (currentPage, currentFilters, currentSearch) => {
-    // setLoading(true)
-    // const from = (currentPage - 1) * PAGE_SIZE
-    // const to = from + PAGE_SIZE - 1
+    setLoading(true)
+    const from = (currentPage - 1) * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
 
-    // let query = supabaseRef.current
-    //   .from('asylum_cases')
-    //   .select(VISIBLE_COLUMNS.join(','), { count: 'exact' })
-    //   .order('date_filed', { ascending: false })
+    let query = supabaseRef.current
+      .from('asylum_cases')
+      .select(VISIBLE_COLUMNS.join(','), { count: 'exact' })
+      .order('date_filed', { ascending: false })
 
-    // query = applyFilters(query, currentFilters)
+    query = applyFilters(query, currentFilters)
 
-    // // Global search across key text columns
-    // if (currentSearch.trim()) {
-    //   const term = `%${currentSearch.trim()}%`
-    //   query = query.or(
-    //     `docket_no.ilike.${term},country_of_origin.ilike.${term},final_disposition.ilike.${term}`
-    //   )
-    // }
+    if (currentSearch.trim()) {
+      const term = `%${currentSearch.trim()}%`
+      query = query.or(
+        `docket_no.ilike.${term},country_of_origin.ilike.${term},final_disposition.ilike.${term}`
+      )
+    }
 
-    // query = query.range(from, to)
+    query = query.range(from, to)
 
-    // const { data, count, error } = await query
-    // if (error) {
-    //   console.error(error)
-    //   setLoading(false)
-    //   return
-    // }
-    // setRows(data || [])
-    // setTotalCount(count || 0)
-    // setLoading(false)
+    const { data, count, error } = await query
+    if (error) {
+      console.error(error)
+      setLoading(false)
+      return
+    }
+    setRows(data || [])
+    setTotalCount(count || 0)
+    setLoading(false)
   }, [])
 
-  // Re-fetch when filters or page change
+  // Re-fetch when filters or page change (skip initial mount — SSR provides the first page)
   useEffect(() => {
-    const hasActiveFilters = Object.values(filters).some(v => v !== '' && v !== null && v !== undefined)
-    if (page === 1 && !hasActiveFilters && !search.trim()) return
+    if (!isMounted.current) { isMounted.current = true; return }
     fetchData(page, filters, search)
   }, [page, filters, search, fetchData])
 

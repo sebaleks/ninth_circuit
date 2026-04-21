@@ -23,14 +23,21 @@ Env vars for openai-compatible providers:
 import argparse
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent / ".env", override=True)
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)  # repo root fallback
+except ImportError:
+    pass  # Docker already injects env vars via --env-file
 
 import mlflow
 import pymupdf
 import requests
 
-import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lib.supabase_client import get_client
@@ -85,6 +92,8 @@ RULES — follow these strictly, no exceptions:
   "past_persecution_detention_evidence": "string",
   "past_persecution_sexual_violence": true,
   "past_persecution_sexual_violence_evidence": "string",
+  "past_persecution_violence_by": "string" (enum of : gang, cartel, family, others, NULL-if not mentioned),
+  "past_persecution_violence_by_evidence": "string",
   "past_persecution_death_threats": true,
   "past_persecution_death_threats_evidence": "string",
   "past_persecution_harm_severity": true,
@@ -197,18 +206,22 @@ def send_text_to_provider(text: str, prompt: str) -> dict:
 def fetch_pending_rows(supabase, limit: int | None = None,
                        date_from: str | None = None,
                        date_to: str | None = None,
-                       oldest_first: bool = False) -> list[dict]:
+                       oldest_first: bool = False,
+                       null_columns: list[str] | None = None) -> list[dict]:
     """Fetch asylum_cases rows that still need feature extraction.
 
-    Targets rows where char_count is NULL — the most reliable indicator
-    that a row has never been through extraction.  Optionally filters by
-    date_filed range and controls sort direction.
+    By default targets all rows. If null_columns is provided, only fetches
+    rows where ALL of those columns are NULL — useful for backfilling new fields.
     """
-    query = (
-        supabase.table("asylum_cases")
-        .select("link")
-        .is_("char_count", "null")
-    )
+    query = supabase.table("asylum_cases").select("link")
+
+    if null_columns:
+        # Backfill mode: target rows missing specific columns, ignore char_count
+        or_filter = ",".join(f"{col}.is.null" for col in null_columns)
+        query = query.or_(or_filter)
+    else:
+        # Default mode: rows never extracted
+        query = query.is_("char_count", "null")
     if date_from:
         query = query.gte("date_filed", date_from)
     if date_to:
@@ -221,9 +234,13 @@ def fetch_pending_rows(supabase, limit: int | None = None,
 
 def run(limit: int | None = None, provider: str = "gemini",
         date_from: str | None = None, date_to: str | None = None,
-        oldest_first: bool = False) -> int:
-    """Extract features for pending asylum cases. Returns count processed."""
-    model_label = os.environ.get("MODEL_LABEL", "gemini-2.5-pro") if provider != "gemini" else "gemini-2.5-pro"
+        oldest_first: bool = False,
+        null_columns: list[str] | None = None) -> int:
+    """Extract features for pending asylum cases. Returns count processed.
+
+    If null_columns is provided, only processes rows where those columns are NULL.
+    """
+    model_label = os.environ.get("MODEL_LABEL", "gemini-2.5-pro")
 
     # Configure MLflow if DATABASE_URL is set
     db_url = os.environ.get("DATABASE_URL")
@@ -233,7 +250,20 @@ def run(limit: int | None = None, provider: str = "gemini",
 
     supabase = get_client()
     pending = fetch_pending_rows(supabase, limit=limit, date_from=date_from,
-                                 date_to=date_to, oldest_first=oldest_first)
+                                 date_to=date_to, oldest_first=oldest_first,
+                                 null_columns=null_columns)
+
+    if null_columns and len(pending) == 0:
+        # Diagnose: check total row count and per-column null counts
+        total = supabase.table("asylum_cases").select("link", count="exact").execute()
+        print(f"WARNING: 0 rows found for null_columns={null_columns}.")
+        print(f"  Total rows in asylum_cases: {total.count}")
+        for col in null_columns:
+            try:
+                n = supabase.table("asylum_cases").select("link", count="exact").filter(col, "is", "null").execute()
+                print(f"  Rows where {col} IS NULL: {n.count}")
+            except Exception as e:
+                print(f"  Could not query {col}: {e} — column may not exist in table")
 
     range_str = f" ({date_from} to {date_to})" if date_from or date_to else ""
     print(f"Found {len(pending)} cases pending extraction{range_str} (provider: {provider})")
@@ -271,7 +301,7 @@ def run(limit: int | None = None, provider: str = "gemini",
                     fields = send_text_to_provider(text, EXTRACTION_PROMPT)
                 else:
                     from lib.gemini_client import send_pdf_to_gemini
-                    fields = send_pdf_to_gemini(link, EXTRACTION_PROMPT, pdf_bytes=pdf_bytes)
+                    fields = send_pdf_to_gemini(link, EXTRACTION_PROMPT, pdf_bytes=pdf_bytes, model=model_label)
 
                 fields["char_count"] = char_count
                 fields["extraction_model"] = model_label
@@ -357,10 +387,18 @@ def main():
         default=bool(os.environ.get("OLDEST_FIRST")),
         help="Sort by date_filed ascending (oldest first)",
     )
+    parser.add_argument(
+        "--null-columns",
+        nargs="+",
+        default=None,
+        metavar="COLUMN",
+        help="Only process rows where all of these columns are NULL (e.g. --null-columns past_persecution_violence_by_evidence)",
+    )
     args = parser.parse_args()
     run(limit=args.limit, provider=args.provider,
         date_from=args.date_from, date_to=args.date_to,
-        oldest_first=args.oldest_first)
+        oldest_first=args.oldest_first,
+        null_columns=args.null_columns)
 
 
 if __name__ == "__main__":

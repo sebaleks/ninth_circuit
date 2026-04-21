@@ -33,6 +33,7 @@ export const COLUMN_LABELS = {
   past_persecution_physical_violence: 'Physical Violence',
   past_persecution_detention: 'Detention',
   past_persecution_sexual_violence: 'Sexual Violence',
+  past_persecution_violence_by: 'Violence By',
   past_persecution_death_threats: 'Death Threats',
   past_persecution_harm_severity: 'Harm Severity',
   persecutor_government_actor: 'Gov. Actor',
@@ -86,7 +87,8 @@ export const COLUMN_GROUPS = [
     columns: [
       'past_persecution_established', 'past_persecution_physical_violence',
       'past_persecution_detention', 'past_persecution_sexual_violence',
-      'past_persecution_death_threats', 'past_persecution_harm_severity',
+      'past_persecution_violence_by', 'past_persecution_death_threats',
+      'past_persecution_harm_severity',
     ],
   },
   {
@@ -135,7 +137,10 @@ export const VISIBLE_COLUMNS = COLUMN_GROUPS.flatMap(g => g.columns)
 export const NO_FILTER_COLS = ['link']
 
 // Binary dropdown columns
-export const BINARY_COLS = { published_status: ['Published', 'Unpublished'] }
+export const BINARY_COLS = {
+  published_status: ['Published', 'Unpublished'],
+  past_persecution_violence_by: ['gang', 'cartel', 'family', 'others'],
+}
 
 // Numeric columns
 export const NUMERIC_COLS = ['char_count']
@@ -146,7 +151,7 @@ export const DATE_COLS = ['date_filed']
 // Boolean columns
 export const BOOLEAN_COLS = VISIBLE_COLUMNS.filter(col =>
   !['published_status', 'date_filed', 'docket_no', 'char_count', 'link',
-    'country_of_origin', 'final_disposition'].includes(col)
+    'country_of_origin', 'final_disposition', 'past_persecution_violence_by'].includes(col)
 )
 
 // Column type detection
