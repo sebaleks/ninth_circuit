@@ -309,7 +309,7 @@ def run(limit: int | None = None, provider: str = "gemini",
                     fields["past_persecution_violence_by"] = None
 
                 # Enforce conditional rule: violence_by must be null if no physical/sexual violence
-                if not fields.get("past_persecution_physical_violence") and \
+                if not fields.get("past_persecution_physical_violence") or \
                         not fields.get("past_persecution_sexual_violence"):
                     fields["past_persecution_violence_by"] = None
 
