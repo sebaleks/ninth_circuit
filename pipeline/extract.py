@@ -92,7 +92,7 @@ RULES — follow these strictly, no exceptions:
   "past_persecution_detention_evidence": "string",
   "past_persecution_sexual_violence": true,
   "past_persecution_sexual_violence_evidence": "string",
-  "past_persecution_violence_by": "string" (enum of : gang, cartel, family, others, if past_persecution_physical_violence and past_persecution_sexual_violence is TRUE.  NULL-if not mentioned),
+  "past_persecution_violence_by": "string" (enum of : gang, cartel, family, others, if past_persecution_physical_violence or past_persecution_sexual_violence is TRUE.  NULL-if not mentioned),
   "past_persecution_violence_by_evidence": "string",
   "past_persecution_death_threats": true,
   "past_persecution_death_threats_evidence": "string",
