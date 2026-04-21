@@ -92,7 +92,7 @@ RULES — follow these strictly, no exceptions:
   "past_persecution_detention_evidence": "string",
   "past_persecution_sexual_violence": true,
   "past_persecution_sexual_violence_evidence": "string",
-  "past_persecution_violence_by": "string" (enum of : gang, cartel, family, others, if past_persecution_physical_violence or past_persecution_sexual_violence is TRUE.  NULL-if not mentioned),
+  "past_persecution_violence_by": one of "gang", "cartel", "family", "others", or JSON null — MUST be null if past_persecution_physical_violence AND past_persecution_sexual_violence are both false; also null if the perpetrator does not match the four categories,
   "past_persecution_violence_by_evidence": "string",
   "past_persecution_death_threats": true,
   "past_persecution_death_threats_evidence": "string",
@@ -303,9 +303,25 @@ def run(limit: int | None = None, provider: str = "gemini",
                     from lib.gemini_client import send_pdf_to_gemini
                     fields = send_pdf_to_gemini(link, EXTRACTION_PROMPT, pdf_bytes=pdf_bytes, model=model_label)
 
+                # Normalize "NULL"/"null" strings to real None
+                if isinstance(fields.get("past_persecution_violence_by"), str) and \
+                        fields["past_persecution_violence_by"].upper() == "NULL":
+                    fields["past_persecution_violence_by"] = None
+
+                # Enforce conditional rule: violence_by must be null if no physical/sexual violence
+                if not fields.get("past_persecution_physical_violence") and \
+                        not fields.get("past_persecution_sexual_violence"):
+                    fields["past_persecution_violence_by"] = None
+
                 fields["char_count"] = char_count
                 fields["extraction_model"] = model_label
                 fields["extracted_at"] = datetime.now(timezone.utc).isoformat()
+
+                # In backfill mode, only write the requested columns + metadata
+                if null_columns:
+                    keep = set(null_columns) | {"char_count", "extraction_model", "extracted_at"}
+                    fields = {k: v for k, v in fields.items() if k in keep}
+
                 supabase.table("asylum_cases").update(fields).eq("link", link).execute()
                 print(f"  -> extracted {len(fields)} fields ({char_count:,} chars)")
                 extracted += 1
