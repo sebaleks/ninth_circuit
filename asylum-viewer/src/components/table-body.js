@@ -1,8 +1,21 @@
-import { getColumnWidth } from '@/lib/columns'
+'use client'
+
+import { useState } from 'react'
+import { getColumnWidth, BOOLEAN_COLS } from '@/lib/columns'
+import EvidencePopup from './evidence-popup'
 
 const ROW_HEIGHT = 44
 
+const EVIDENCE_COLS = new Set([
+  ...BOOLEAN_COLS,
+  'country_of_origin',
+  'final_disposition',
+  'past_persecution_violence_by',
+])
+
 export default function TableBody({ rows, columns, onRowClick, frozenCols = 0, frozenRows = 0, columnLeftOffsets = {}, theadHeight = 0 }) {
+  const [popup, setPopup] = useState(null) // { col, link, value }
+
   const formatCell = (val, col) => {
     if (val === null || val === undefined) {
       return <span className="text-muted">&mdash;</span>
@@ -45,52 +58,81 @@ export default function TableBody({ rows, columns, onRowClick, frozenCols = 0, f
   }
 
   return (
-    <tbody>
-      {rows.map((row, i) => {
-        const isFrozenRow = i < frozenRows
-        const isLastFrozenRow = frozenRows > 0 && i === frozenRows - 1
-        const rowBg = i % 2 === 0 ? 'var(--color-surface)' : 'var(--color-row-alt)'
+    <>
+      <tbody>
+        {rows.map((row, i) => {
+          const isFrozenRow = i < frozenRows
+          const isLastFrozenRow = frozenRows > 0 && i === frozenRows - 1
+          const rowBg = i % 2 === 0 ? 'var(--color-surface)' : 'var(--color-row-alt)'
 
-        return (
-          <tr
-            key={row.link || i}
-            onClick={() => onRowClick(row)}
-            style={isFrozenRow ? { position: 'sticky', top: theadHeight + i * ROW_HEIGHT, zIndex: 4 } : {}}
-            className={[
-              'border-b border-border transition-colors hover:bg-row-hover hover:[&>td:first-child]:border-l-2 hover:[&>td:first-child]:border-l-accent cursor-pointer',
-              i % 2 === 0 ? 'bg-surface' : 'bg-row-alt',
-              isLastFrozenRow ? 'shadow-[0_2px_6px_rgba(0,0,0,0.12)]' : '',
-            ].filter(Boolean).join(' ')}
-          >
-            {columns.map((col, j) => {
-              const isFrozenCol = j < frozenCols
-              const isLastFrozenCol = frozenCols > 0 && j === frozenCols - 1
+          return (
+            <tr
+              key={row.link || i}
+              onClick={() => onRowClick(row)}
+              style={isFrozenRow ? { position: 'sticky', top: theadHeight + i * ROW_HEIGHT, zIndex: 4 } : {}}
+              className={[
+                'border-b border-border transition-colors hover:bg-row-hover hover:[&>td:first-child]:border-l-2 hover:[&>td:first-child]:border-l-accent cursor-pointer',
+                i % 2 === 0 ? 'bg-surface' : 'bg-row-alt',
+                isLastFrozenRow ? 'shadow-[0_2px_6px_rgba(0,0,0,0.12)]' : '',
+              ].filter(Boolean).join(' ')}
+            >
+              {columns.map((col, j) => {
+                const isFrozenCol = j < frozenCols
+                const isLastFrozenCol = frozenCols > 0 && j === frozenCols - 1
+                const hasEvidence = EVIDENCE_COLS.has(col)
+                const val = row[col]
 
-              return (
-                <td
-                  key={col}
-                  title={String(row[col] ?? '')}
-                  style={{
-                    minWidth: getColumnWidth(col),
-                    ...(isFrozenCol ? {
-                      position: 'sticky',
-                      left: columnLeftOffsets[col],
-                      zIndex: isFrozenRow ? 6 : 2,
-                      background: rowBg,
-                    } : {}),
-                  }}
-                  className={[
-                    'px-5 py-3 border-r border-border max-w-[280px] overflow-hidden text-ellipsis whitespace-nowrap align-middle text-sm',
-                    isLastFrozenCol ? 'shadow-[2px_0_6px_rgba(0,0,0,0.12)]' : '',
-                  ].filter(Boolean).join(' ')}
-                >
-                  {formatCell(row[col], col)}
-                </td>
-              )
-            })}
-          </tr>
-        )
-      })}
-    </tbody>
+                return (
+                  <td
+                    key={col}
+                    title={String(val ?? '')}
+                    style={{
+                      minWidth: getColumnWidth(col),
+                      ...(isFrozenCol ? {
+                        position: 'sticky',
+                        left: columnLeftOffsets[col],
+                        zIndex: isFrozenRow ? 6 : 2,
+                        background: rowBg,
+                      } : {}),
+                    }}
+                    className={[
+                      'px-5 py-3 border-r border-border max-w-[280px] overflow-hidden text-ellipsis whitespace-nowrap align-middle text-sm',
+                      isLastFrozenCol ? 'shadow-[2px_0_6px_rgba(0,0,0,0.12)]' : '',
+                    ].filter(Boolean).join(' ')}
+                  >
+                    {hasEvidence ? (
+                      <button
+                        onClick={e => {
+                          e.stopPropagation()
+                          setPopup({ col, link: row.link, value: val })
+                        }}
+                        className="flex items-center gap-1.5 group w-full text-left"
+                        title="Click to view evidence"
+                      >
+                        {formatCell(val, col)}
+                        <span className="opacity-0 group-hover:opacity-60 text-muted text-[10px] transition-opacity shrink-0">
+                          &#8220;&#8221;
+                        </span>
+                      </button>
+                    ) : (
+                      formatCell(val, col)
+                    )}
+                  </td>
+                )
+              })}
+            </tr>
+          )
+        })}
+      </tbody>
+
+      {popup && (
+        <EvidencePopup
+          col={popup.col}
+          link={popup.link}
+          value={popup.value}
+          onClose={() => setPopup(null)}
+        />
+      )}
+    </>
   )
 }

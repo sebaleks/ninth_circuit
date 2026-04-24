@@ -18,10 +18,6 @@ def get_client() -> genai.Client:
     """Return a cached Vertex AI Gemini client."""
     global _client
     if _client is None:
-        import os, google.auth
-        creds, project = google.auth.default()
-        print(f"  [gemini] cred_type={type(creds).__name__} project={project!r}")
-        print(f"  [gemini] GOOGLE_APPLICATION_CREDENTIALS={os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')!r}")
         _client = genai.Client(
             vertexai=True,
             project=GCP_PROJECT_ID,
