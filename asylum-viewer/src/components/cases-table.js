@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { VISIBLE_COLUMNS, getColumnWidth } from '@/lib/columns'
+import { VISIBLE_COLUMNS, COLUMN_GROUPS, getColumnWidth } from '@/lib/columns'
 import { applyFilters } from '@/lib/filters'
+import { DEFAULT_LAYOUT, loadPreferences, savePreferences } from '@/lib/preferences'
 import AppHeader from './app-header'
 import TableControls from './table-controls'
 import TableHeader from './table-header'
@@ -42,8 +43,40 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
 
   const supabaseRef = useRef(createClient())
   const searchTimerRef = useRef(null)
+  const saveTimerRef = useRef(null)
   const theadRef = useRef(null)
   const [theadHeight, setTheadHeight] = useState(0)
+  const isMounted = useRef(false)
+
+  // Load preferences on mount
+  useEffect(() => {
+    loadPreferences(supabaseRef.current).then(prefs => {
+      setColumnOrder(prefs.columnOrder)
+      setHiddenColumns(new Set(prefs.hiddenColumns))
+      setFrozenCols(prefs.frozenCols)
+      setFrozenRows(prefs.frozenRows)
+    })
+  }, [])
+
+  // Save preferences (debounced) on any layout change
+  useEffect(() => {
+    clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      savePreferences(supabaseRef.current, {
+        columnOrder,
+        hiddenColumns: [...hiddenColumns],
+        frozenCols,
+        frozenRows,
+      })
+    }, 800)
+  }, [columnOrder, hiddenColumns, frozenCols, frozenRows])
+
+  const handleResetLayout = () => {
+    setColumnOrder(DEFAULT_LAYOUT.columnOrder)
+    setHiddenColumns(new Set(DEFAULT_LAYOUT.hiddenColumns))
+    setFrozenCols(DEFAULT_LAYOUT.frozenCols)
+    setFrozenRows(DEFAULT_LAYOUT.frozenRows)
+  }
 
   const visibleColumns = columnOrder.filter(c => !hiddenColumns.has(c))
   const columnLeftOffsets = computeLeftOffsets(visibleColumns, frozenCols)
@@ -66,7 +99,6 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
 
     query = applyFilters(query, currentFilters)
 
-    // Global search across key text columns
     if (currentSearch.trim()) {
       const term = `%${currentSearch.trim()}%`
       query = query.or(
@@ -87,10 +119,9 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
     setLoading(false)
   }, [])
 
-  // Re-fetch when filters or page change
+  // Re-fetch when filters or page change (skip initial mount — SSR provides the first page)
   useEffect(() => {
-    const hasActiveFilters = Object.values(filters).some(v => v !== '' && v !== null && v !== undefined)
-    if (page === 1 && !hasActiveFilters && !search.trim()) return
+    if (!isMounted.current) { isMounted.current = true; return }
     fetchData(page, filters, search)
   }, [page, filters, search, fetchData])
 
@@ -132,6 +163,27 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
     })
   }
 
+  const handleGroupReorder = (fromGroupKey, toGroupKey) => {
+    setColumnOrder(prev => {
+      const fromCols = new Set(COLUMN_GROUPS.find(g => g.key === fromGroupKey)?.columns ?? [])
+      const toCols = new Set(COLUMN_GROUPS.find(g => g.key === toGroupKey)?.columns ?? [])
+      const fromArr = prev.filter(c => fromCols.has(c))
+      const rest = prev.filter(c => !fromCols.has(c))
+      const firstFromIdx = prev.findIndex(c => fromCols.has(c))
+      const firstToIdx = prev.findIndex(c => toCols.has(c))
+      const insertIdx = rest.findIndex(c => toCols.has(c))
+      if (insertIdx === -1) return prev
+      const result = [...rest]
+      if (firstFromIdx < firstToIdx) {
+        const lastToIdx = result.reduce((acc, c, i) => toCols.has(c) ? i : acc, insertIdx)
+        result.splice(lastToIdx + 1, 0, ...fromArr)
+      } else {
+        result.splice(insertIdx, 0, ...fromArr)
+      }
+      return result
+    })
+  }
+
   return (
     <div className="flex flex-col h-screen">
       <AppHeader
@@ -150,6 +202,7 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
         onFrozenColsChange={setFrozenCols}
         onFrozenRowsChange={setFrozenRows}
         visibleCount={visibleColumns.length}
+        onResetLayout={handleResetLayout}
       />
 
       {/* Mobile card view */}
@@ -177,6 +230,7 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
                 frozenCols={frozenCols}
                 columnLeftOffsets={columnLeftOffsets}
                 onColumnReorder={handleColumnReorder}
+                onGroupReorder={handleGroupReorder}
               />
               <TableFilters
                 columns={visibleColumns}

@@ -39,7 +39,8 @@ def send_pdf_to_gemini(
     model: str = "gemini-2.5-pro",
     pdf_bytes: bytes | None = None,
 ) -> dict:
-    """Send a PDF to Gemini with a prompt.
+    """
+    Send a PDF to Gemini with a prompt.
 
     If pdf_bytes is provided, uses those directly (avoids re-downloading).
     Otherwise downloads from pdf_url.
@@ -48,7 +49,6 @@ def send_pdf_to_gemini(
     """
     if pdf_bytes is None:
         pdf_bytes = download_pdf(pdf_url)
-
     pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
 
     client = get_client()
