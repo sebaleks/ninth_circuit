@@ -1,18 +1,21 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
 import { getLabel } from '@/lib/columns'
 
 export default function EvidencePopup({ col, link, value, onClose }) {
+  const [mounted, setMounted] = useState(false)
   const [evidence, setEvidence] = useState(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
-  const dialogRef = useRef(null)
+
+  // Guard against SSR — createPortal requires document.body
+  useEffect(() => setMounted(true), [])
 
   useEffect(() => {
-    const fetch = async () => {
+    const loadEvidence = async () => {
       const supabase = createClient()
       const { data } = await supabase
         .from('asylum_cases')
@@ -22,7 +25,7 @@ export default function EvidencePopup({ col, link, value, onClose }) {
       setEvidence(data?.[`${col}_evidence`] ?? null)
       setLoading(false)
     }
-    fetch()
+    loadEvidence()
   }, [col, link])
 
   useEffect(() => {
@@ -40,11 +43,15 @@ export default function EvidencePopup({ col, link, value, onClose }) {
 
   const isBool = typeof value === 'boolean'
 
+  if (!mounted) return null
+
   return createPortal(
     <>
       <div className="fixed inset-0 z-[60]" onClick={onClose} />
       <div
-        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={getLabel(col)}
         className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[61] w-full max-w-lg bg-drawer-bg border border-border shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
