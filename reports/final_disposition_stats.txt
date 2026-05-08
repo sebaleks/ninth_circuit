@@ -1,0 +1,378 @@
+======================================================================
+df.info()
+======================================================================
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 5981 entries, 0 to 5980
+Data columns (total 1 columns):
+ #   Column             Non-Null Count  Dtype 
+---  ------             --------------  ----- 
+ 0   final_disposition  5981 non-null   object
+dtypes: object(1)
+memory usage: 46.9+ KB
+
+======================================================================
+col.describe()
+======================================================================
+count       5981
+unique       151
+top       Denied
+freq        4363
+Name: final_disposition, dtype: object
+
+======================================================================
+Null / empty audit
+======================================================================
+Total rows          : 5,981
+Null values         : 0
+Empty-string values : 0
+'Not determined'    : 1
+Unique values       : 151
+
+======================================================================
+value_counts (all 151 unique values, sorted by frequency)
+======================================================================
+Value                                                                               Count      Pct
+----------------------------------------------------------------------------------------------------
+Denied                                                                              4,363   72.95%
+Remanded                                                                              503    8.41%
+Denied in part; Dismissed in part                                                     379    6.34%
+Denied in part and Dismissed in part                                                  117    1.96%
+Dismissed in part; Denied in part                                                      88    1.47%
+Dismissed in part and denied in part                                                   69    1.15%
+Dismissed in part and Denied in part                                                   62    1.04%
+Dismissed                                                                              52    0.87%
+Affirmed                                                                               20    0.33%
+Granted                                                                                20    0.33%
+Denied in part, Dismissed in part                                                      19    0.32%
+Denied in part and dismissed in part                                                   19    0.32%
+Dismissed in part, Denied in part                                                      14    0.23%
+Granted and Remanded                                                                   10    0.17%
+Granted in part and Denied in part                                                      8    0.13%
+Granted in part and denied in part                                                      8    0.13%
+Denied in part and Granted in part                                                      8    0.13%
+Denied in part, Granted in part, and Remanded                                           7    0.12%
+Denied in part; Granted in part; Remanded                                               7    0.12%
+Granted in part, Denied in part, and Remanded                                           7    0.12%
+Granted in part; Denied in part; Remanded                                               7    0.12%
+Remanded in part, Denied in part                                                        6    0.10%
+Petition Denied                                                                         5    0.08%
+Denied in part and Granted in part; Remanded                                            5    0.08%
+Denied and Dismissed                                                                    4    0.07%
+Denied in Part and Dismissed in Part                                                    4    0.07%
+Dismissed and Denied                                                                    4    0.07%
+Denied in part, Granted in part, Remanded                                               4    0.07%
+(no evidence)                                                                           4    0.07%
+Vacated and Remanded                                                                    3    0.05%
+Granted in part; Denied in part; Dismissed in part; Remanded                            3    0.05%
+Granted in part, Denied in part, Remanded                                               3    0.05%
+Granted in Part, Denied in Part, Remanded                                               3    0.05%
+Denied in part, Granted and Remanded in part                                            3    0.05%
+Not determined.                                                                         3    0.05%
+Granted in part, Denied in part                                                         3    0.05%
+Granted in part, Denied in part, and Dismissed in part                                  2    0.03%
+GRANTED in part, DENIED in part, and REMANDED                                           2    0.03%
+Dismissed in part; Denied in part; Granted in part; Remanded                            2    0.03%
+Petition Granted in Part, Denied in Part, and Remanded                                  2    0.03%
+Dismissed in part; and Denied in part                                                   2    0.03%
+Denied in part, Granted in part and Remanded                                            2    0.03%
+Denied in part; Dismissed in part; Granted in part; Remanded                            2    0.03%
+Denied in part; Remanded in part                                                        2    0.03%
+Denied in part; Granted in part; and Remanded                                           2    0.03%
+Granted in part, Dismissed in part, and Remanded                                        2    0.03%
+Dismissed in part, Denied in part, and Granted in part; Remanded                        2    0.03%
+Partially Granted, Partially Denied                                                     2    0.03%
+Dismissed in part and denied                                                            2    0.03%
+Partially Granted and Partially Denied                                                  2    0.03%
+Granted in part; Denied in part; and Remanded                                           2    0.03%
+Granted in part and denied in part; Remanded                                            2    0.03%
+Dismissed in Part and Denied in Part                                                    2    0.03%
+Denied in part                                                                          2    0.03%
+Remanded for further proceedings                                                        2    0.03%
+Denied in part and granted and remanded in part                                         2    0.03%
+Affirmed in part; Reversed in part                                                      2    0.03%
+Denied in part and Remanded in part                                                     2    0.03%
+Granted in part; Denied in part; and Dismissed in part                                  1    0.02%
+Denied in part, Granted in part; Remanded                                               1    0.02%
+Granted in part, Dismissed in part, and Denied in part; Remanded                        1    0.02%
+Orozco-Lopez's petition is granted and remanded, while Gonzalez's is denied.            1    0.02%
+Denied in part and Remanded                                                             1    0.02%
+Dismissed in part, Denied in part, and Remanded in part                                 1    0.02%
+Denied, in part, and Remanded, in remaining part                                        1    0.02%
+Denied in part, Dismissed in part, Granted in part, and Remanded in part                1    0.02%
+Granted in part; Denied in part; Dismissed in part                                      1    0.02%
+Granted in Part, Denied in Part; Remanded                                               1    0.02%
+Granted in part; Denied in part                                                         1    0.02%
+Remanded for a new hearing as to Rivera-Recinos and Denied as to Recinos-Ulloa          1    0.02%
+Remanded in part, Denied in part, Dismissed in part                                     1    0.02%
+Denied in part, Granted in part, Dismissed in part, Remanded                            1    0.02%
+Denied in Part; Granted in Part; Remanded                                               1    0.02%
+Denied, Denied in part and Dismissed in part, Granted and Remanded                      1    0.02%
+Denied in part, Dismissed in part, and Granted in part; Remanded                        1    0.02%
+Dismissed in part, and Denied in part                                                   1    0.02%
+Certified questions to Arizona Supreme Court                                            1    0.02%
+Petition Dismissed in Part, Granted in Part, and Remanded                               1    0.02%
+Stay of injunction denied                                                               1    0.02%
+Partial grant and partial denial of the Government's request for a stay                 1    0.02%
+GRANTED in part, DENIED in part, DISMISSED in part, and REMANDED                        1    0.02%
+Petition granted in part, denied in part                                                1    0.02%
+Granted in Part, Denied in Part                                                         1    0.02%
+Remanded with instructions to terminate proceedings                                     1    0.02%
+GRANTED in part, DENIED in part, and REMANDED for further proceedings                   1    0.02%
+Dismissed in part; Granted in part; Denied in part; Remanded                            1    0.02%
+Remanded in part, Granted in part, and Denied in part                                   1    0.02%
+Denied in part and granted in part; Remanded with instructions                          1    0.02%
+Granted; Remanded                                                                       1    0.02%
+Denied in part; Granted in part; Dismissed in part; Remanded                            1    0.02%
+Denied, Remanded                                                                        1    0.02%
+Denied in part; Dismissed in part (No. 15-73850), Denied (No. 19-71599)                 1    0.02%
+Denied in part, Granted in part                                                         1    0.02%
+Rehearing en banc ordered                                                               1    0.02%
+Partially Granted and Partially Denied; Case Remanded                                   1    0.02%
+Remanded with instructions                                                              1    0.02%
+Dismissed in part, and denied in part                                                   1    0.02%
+Granted in part, Denied in part, Dismissed in part, and Remanded                        1    0.02%
+Partially Denied, Partially Granted and Remanded                                        1    0.02%
+Granted in part, denied in part, remanded                                               1    0.02%
+Remanded with instructions to grant CAT relief                                          1    0.02%
+Stayed                                                                                  1    0.02%
+Petition Granted                                                                        1    0.02%
+Denied in part; dismissed in part                                                       1    0.02%
+Petition Denied in Part and Dismissed in Part                                           1    0.02%
+Denied in part and Granted and Remanded in part                                         1    0.02%
+Petition for Rehearing Denied as Moot                                                   1    0.02%
+Reheard en banc                                                                         1    0.02%
+Granted in Part                                                                         1    0.02%
+Vacated in part and Remanded                                                            1    0.02%
+Denied in part, Granted in part, and Remanded for further proceedings                   1    0.02%
+Granted in Part, Denied in Part, and Remanded                                           1    0.02%
+Partially granted and partially denied; remanded                                        1    0.02%
+Remanded in part; Denied in part                                                        1    0.02%
+Petition Granted in Part; Denied in Part                                                1    0.02%
+Petition Granted in Part, Denied in Part                                                1    0.02%
+Partially granted and partially denied                                                  1    0.02%
+Granted in part; Reversed in part; and Remanded for Reconsideration                     1    0.02%
+Pending                                                                                 1    0.02%
+Dismissed in part, granted in part, denied in part, and remanded                        1    0.02%
+Granted in part and dismissed in part                                                   1    0.02%
+Remanded in part, and denied in part                                                    1    0.02%
+Granted in part; Dismissed in part                                                      1    0.02%
+Granted, Vacated and Remanded                                                           1    0.02%
+Granted in part and Remanded                                                            1    0.02%
+Petition denied in 23-358, and petition granted in 23-855                               1    0.02%
+Denied, in part, Dismissed, in part                                                     1    0.02%
+Granted and Remanded in Part, Dismissed in Part, and Denied in Part                     1    0.02%
+Granted in part, dismissed in part, and remanded                                        1    0.02%
+Partially granted and partially denied, with remand                                     1    0.02%
+Denied as to Zuliema Dolores Guerrero-Esperanza, Granted as to Daniel Enrique Vasquez-Guerrero; Remanded        1    0.02%
+Not determined                                                                          1    0.02%
+Dismissed in Part; Denied in Part                                                       1    0.02%
+Conviction affirmed                                                                     1    0.02%
+Denied in part; Granted in part and Remanded                                            1    0.02%
+Affirmed in part, Vacated in part                                                       1    0.02%
+Petition GRANTED in part, DISMISSED in part, and DENIED in part                         1    0.02%
+Granted in part and Denied in part; Case Remanded                                       1    0.02%
+Granted and Remanded in part and Denied in part                                         1    0.02%
+Abeyance                                                                                1    0.02%
+Denied in part; Vacated and Remanded in part                                            1    0.02%
+Denied in part and dismissed in part.                                                   1    0.02%
+Remanded in Part, Denied in Part                                                        1    0.02%
+Denied in part, Remanded in part                                                        1    0.02%
+Remanded in part and Denied in part                                                     1    0.02%
+Denied in part and granted in part; remanded                                            1    0.02%
+Denied, in part; Dismissed, in part                                                     1    0.02%
+Granted in part and Denied in part; Remanded                                            1    0.02%
+Denied in part; Remanded                                                                1    0.02%
+Dismissed in part, Denied in part, and Granted in part                                  1    0.02%
+Denied in part, Dismissed in part, Granted in part, and Remanded                        1    0.02%
+
+====================================================================================================
+NORMALIZATION MAPPING  (original value → canonical label)
+====================================================================================================
+#     Original Value                                                                    Count   Canonical Label
+----------------------------------------------------------------------------------------------------------------------------------
+1     Denied                                                                            4,363   Denied
+2     Remanded                                                                            503   Remanded
+3     Denied in part; Dismissed in part                                                   379   Denied; Dismissed
+4     Denied in part and Dismissed in part                                                117   Denied; Dismissed
+5     Dismissed in part; Denied in part                                                    88   Denied; Dismissed
+6     Dismissed in part and denied in part                                                 69   Denied; Dismissed
+7     Dismissed in part and Denied in part                                                 62   Denied; Dismissed
+8     Dismissed                                                                            52   Dismissed
+9     Affirmed                                                                             20   Affirmed
+10    Granted                                                                              20   Granted
+11    Denied in part and dismissed in part                                                 19   Denied; Dismissed
+12    Denied in part, Dismissed in part                                                    19   Denied; Dismissed
+13    Dismissed in part, Denied in part                                                    14   Denied; Dismissed
+14    Granted and Remanded                                                                 10   Granted; Remanded
+15    Granted in part and denied in part                                                    8   Denied; Granted
+16    Granted in part and Denied in part                                                    8   Denied; Granted
+17    Denied in part and Granted in part                                                    8   Denied; Granted
+18    Denied in part, Granted in part, and Remanded                                         7   Denied; Granted; Remanded
+19    Denied in part; Granted in part; Remanded                                             7   Denied; Granted; Remanded
+20    Granted in part, Denied in part, and Remanded                                         7   Denied; Granted; Remanded
+21    Granted in part; Denied in part; Remanded                                             7   Denied; Granted; Remanded
+22    Remanded in part, Denied in part                                                      6   Denied; Remanded
+23    Denied in part and Granted in part; Remanded                                          5   Denied; Granted; Remanded
+24    Petition Denied                                                                       5   Denied
+25    Denied in Part and Dismissed in Part                                                  4   Denied; Dismissed
+26    (no evidence)                                                                         4   Not Determined
+27    Dismissed and Denied                                                                  4   Denied; Dismissed
+28    Denied in part, Granted in part, Remanded                                             4   Denied; Granted; Remanded
+29    Denied and Dismissed                                                                  4   Denied; Dismissed
+30    <NaN>                                                                                 3   Other: None
+31    Granted in Part, Denied in Part, Remanded                                             3   Denied; Granted; Remanded
+32    Granted in part; Denied in part; Dismissed in part; Remanded                          3   Denied; Dismissed; Granted; Remanded
+33    Granted in part, Denied in part, Remanded                                             3   Denied; Granted; Remanded
+34    Vacated and Remanded                                                                  3   Remanded; Vacated
+35    Not determined.                                                                       3   Not Determined
+36    Denied in part, Granted and Remanded in part                                          3   Denied; Granted; Remanded
+37    Granted in part, Denied in part                                                       3   Denied; Granted
+38    Denied in part; Dismissed in part; Granted in part; Remanded                          2   Denied; Dismissed; Granted; Remanded
+39    Denied in part; Remanded in part                                                      2   Denied; Remanded
+40    Granted in part, Dismissed in part, and Remanded                                      2   Dismissed; Granted; Remanded
+41    Denied in part; Granted in part; and Remanded                                         2   Denied; Granted; Remanded
+42    GRANTED in part, DENIED in part, and REMANDED                                         2   Denied; Granted; Remanded
+43    Petition Granted in Part, Denied in Part, and Remanded                                2   Denied; Granted; Remanded
+44    Dismissed in part; and Denied in part                                                 2   Denied; Dismissed
+45    Granted in part; Denied in part; and Remanded                                         2   Denied; Granted; Remanded
+46    Denied in part and granted and remanded in part                                       2   Denied; Granted; Remanded
+47    Denied in part                                                                        2   Denied
+48    Dismissed in part, Denied in part, and Granted in part; Remanded                      2   Denied; Dismissed; Granted; Remanded
+49    Denied in part and Remanded in part                                                   2   Denied; Remanded
+50    Dismissed in part; Denied in part; Granted in part; Remanded                          2   Denied; Dismissed; Granted; Remanded
+51    Partially Granted and Partially Denied                                                2   Denied; Granted
+52    Granted in part and denied in part; Remanded                                          2   Denied; Granted; Remanded
+53    Granted in part, Denied in part, and Dismissed in part                                2   Denied; Dismissed; Granted
+54    Dismissed in part and denied                                                          2   Denied; Dismissed
+55    Dismissed in Part and Denied in Part                                                  2   Denied; Dismissed
+56    Partially Granted, Partially Denied                                                   2   Denied; Granted
+57    Remanded for further proceedings                                                      2   Remanded
+58    Denied in part, Granted in part and Remanded                                          2   Denied; Granted; Remanded
+59    Affirmed in part; Reversed in part                                                    2   Affirmed; Reversed
+60    Remanded for a new hearing as to Rivera-Recinos and Denied as to Recinos-Ulloa        1   Denied; Remanded
+61    Granted in part; Denied in part; and Dismissed in part                                1   Denied; Dismissed; Granted
+62    Granted in part; Denied in part                                                       1   Denied; Granted
+63    Granted in Part, Denied in Part; Remanded                                             1   Denied; Granted; Remanded
+64    Granted in part; Denied in part; Dismissed in part                                    1   Denied; Dismissed; Granted
+65    Denied, in part, and Remanded, in remaining part                                      1   Denied; Remanded
+66    Denied in part, Granted in part; Remanded                                             1   Denied; Granted; Remanded
+67    Dismissed in part, Denied in part, and Remanded in part                               1   Denied; Dismissed; Remanded
+68    Orozco-Lopez's petition is granted and remanded, while Gonzalez's is denied.          1   Denied; Granted; Remanded
+69    Denied in part, Dismissed in part, Granted in part, and Remanded in part              1   Denied; Dismissed; Granted; Remanded
+70    Denied in part and Remanded                                                           1   Denied; Remanded
+71    Remanded in part, Denied in part, Dismissed in part                                   1   Denied; Dismissed; Remanded
+72    GRANTED in part, DENIED in part, DISMISSED in part, and REMANDED                      1   Denied; Dismissed; Granted; Remanded
+73    Rehearing en banc ordered                                                             1   Reheard En Banc
+74    Denied in Part; Granted in Part; Remanded                                             1   Denied; Granted; Remanded
+75    Dismissed in part; Granted in part; Denied in part; Remanded                          1   Denied; Dismissed; Granted; Remanded
+76    Petition Dismissed in Part, Granted in Part, and Remanded                             1   Dismissed; Granted; Remanded
+77    Certified questions to Arizona Supreme Court                                          1   Certified Question
+78    Dismissed in part, and Denied in part                                                 1   Denied; Dismissed
+79    Petition granted in part, denied in part                                              1   Denied; Granted
+80    Granted in Part, Denied in Part                                                       1   Denied; Granted
+81    Denied in part, Dismissed in part, and Granted in part; Remanded                      1   Denied; Dismissed; Granted; Remanded
+82    Granted in part, Dismissed in part, and Denied in part; Remanded                      1   Denied; Dismissed; Granted; Remanded
+83    Remanded with instructions to terminate proceedings                                   1   Remanded
+84    Denied in part; Dismissed in part (No. 15-73850), Denied (No. 19-71599)               1   Denied; Dismissed
+85    GRANTED in part, DENIED in part, and REMANDED for further proceedings                 1   Denied; Granted; Remanded
+86    Denied, Denied in part and Dismissed in part, Granted and Remanded                    1   Denied; Dismissed; Granted; Remanded
+87    Denied in part and granted in part; Remanded with instructions                        1   Denied; Granted; Remanded
+88    Remanded in part, Granted in part, and Denied in part                                 1   Denied; Granted; Remanded
+89    Granted; Remanded                                                                     1   Granted; Remanded
+90    Denied in part; Granted in part; Dismissed in part; Remanded                          1   Denied; Dismissed; Granted; Remanded
+91    Denied, Remanded                                                                      1   Denied; Remanded
+92    Denied in part, Granted in part, Dismissed in part, Remanded                          1   Denied; Dismissed; Granted; Remanded
+93    Denied in part, Granted in part                                                       1   Denied; Granted
+94    Stay of injunction denied                                                             1   Denied
+95    Partial grant and partial denial of the Government's request for a stay               1   Denied; Granted
+96    Partially Granted and Partially Denied; Case Remanded                                 1   Denied; Granted; Remanded
+97    Remanded with instructions                                                            1   Remanded
+98    Dismissed in part, and denied in part                                                 1   Denied; Dismissed
+99    Granted in part, Denied in part, Dismissed in part, and Remanded                      1   Denied; Dismissed; Granted; Remanded
+100   Partially Denied, Partially Granted and Remanded                                      1   Denied; Granted; Remanded
+101   Denied in part, Remanded in part                                                      1   Denied; Remanded
+102   Remanded with instructions to grant CAT relief                                        1   Remanded
+103   Stayed                                                                                1   Stayed
+104   Petition Granted                                                                      1   Granted
+105   Denied in part; dismissed in part                                                     1   Denied; Dismissed
+106   Petition Denied in Part and Dismissed in Part                                         1   Denied; Dismissed
+107   Denied in part and Granted and Remanded in part                                       1   Denied; Granted; Remanded
+108   Petition for Rehearing Denied as Moot                                                 1   Denied
+109   Reheard en banc                                                                       1   Reheard En Banc
+110   Granted in Part                                                                       1   Granted
+111   Vacated in part and Remanded                                                          1   Remanded; Vacated
+112   Denied in part, Granted in part, and Remanded for further proceedings                 1   Denied; Granted; Remanded
+113   Granted in Part, Denied in Part, and Remanded                                         1   Denied; Granted; Remanded
+114   Partially granted and partially denied; remanded                                      1   Denied; Granted; Remanded
+115   Remanded in part; Denied in part                                                      1   Denied; Remanded
+116   Petition Granted in Part; Denied in Part                                              1   Denied; Granted
+117   Petition Granted in Part, Denied in Part                                              1   Denied; Granted
+118   Partially granted and partially denied                                                1   Denied; Granted
+119   Granted in part; Reversed in part; and Remanded for Reconsideration                   1   Granted; Remanded; Reversed
+120   Pending                                                                               1   Pending
+121   Dismissed in part, granted in part, denied in part, and remanded                      1   Denied; Dismissed; Granted; Remanded
+122   Granted in part and dismissed in part                                                 1   Dismissed; Granted
+123   Remanded in part, and denied in part                                                  1   Denied; Remanded
+124   Granted in part; Dismissed in part                                                    1   Dismissed; Granted
+125   Granted, Vacated and Remanded                                                         1   Granted; Remanded; Vacated
+126   Granted in part and Remanded                                                          1   Granted; Remanded
+127   Petition denied in 23-358, and petition granted in 23-855                             1   Denied; Granted
+128   Denied, in part, Dismissed, in part                                                   1   Denied; Dismissed
+129   Granted and Remanded in Part, Dismissed in Part, and Denied in Part                   1   Denied; Dismissed; Granted; Remanded
+130   Granted in part, dismissed in part, and remanded                                      1   Dismissed; Granted; Remanded
+131   Partially granted and partially denied, with remand                                   1   Denied; Granted; Remanded
+132   Denied as to Zuliema Dolores Guerrero-Esperanza, Granted as to Daniel Enrique Vasquez-Guerrero; Remanded      1   Denied; Granted; Remanded
+133   Not determined                                                                        1   Not Determined
+134   Dismissed in Part; Denied in Part                                                     1   Denied; Dismissed
+135   Conviction affirmed                                                                   1   Affirmed
+136   Denied in part; Granted in part and Remanded                                          1   Denied; Granted; Remanded
+137   Affirmed in part, Vacated in part                                                     1   Affirmed; Vacated
+138   Petition GRANTED in part, DISMISSED in part, and DENIED in part                       1   Denied; Dismissed; Granted
+139   Granted in part and Denied in part; Case Remanded                                     1   Denied; Granted; Remanded
+140   Granted and Remanded in part and Denied in part                                       1   Denied; Granted; Remanded
+141   Abeyance                                                                              1   Abeyance
+142   Denied in part; Vacated and Remanded in part                                          1   Denied; Remanded; Vacated
+143   Denied in part and dismissed in part.                                                 1   Denied; Dismissed
+144   Remanded in Part, Denied in Part                                                      1   Denied; Remanded
+145   Granted in part, denied in part, remanded                                             1   Denied; Granted; Remanded
+146   Remanded in part and Denied in part                                                   1   Denied; Remanded
+147   Denied in part and granted in part; remanded                                          1   Denied; Granted; Remanded
+148   Denied, in part; Dismissed, in part                                                   1   Denied; Dismissed
+149   Granted in part and Denied in part; Remanded                                          1   Denied; Granted; Remanded
+150   Denied in part; Remanded                                                              1   Denied; Remanded
+151   Dismissed in part, Denied in part, and Granted in part                                1   Denied; Dismissed; Granted
+152   Denied in part, Dismissed in part, Granted in part, and Remanded                      1   Denied; Dismissed; Granted; Remanded
+
+====================================================================================================
+CONDENSED value_counts  (28 canonical labels from 152 originals)
+====================================================================================================
+Canonical Label                                       Count      Pct
+---------------------------------------------------------------------------
+Denied                                                4,372   73.06%
+Denied; Dismissed                                       794   13.27%
+Remanded                                                508    8.49%
+Denied; Granted; Remanded                                81    1.35%
+Dismissed                                                52    0.87%
+Denied; Granted                                          40    0.67%
+Granted                                                  22    0.37%
+Denied; Dismissed; Granted; Remanded                     21    0.35%
+Affirmed                                                 21    0.35%
+Denied; Remanded                                         20    0.33%
+Granted; Remanded                                        12    0.20%
+Not Determined                                            8    0.13%
+Denied; Dismissed; Granted                                6    0.10%
+Dismissed; Granted; Remanded                              4    0.07%
+Remanded; Vacated                                         4    0.07%
+Other: None                                               3    0.05%
+Reheard En Banc                                           2    0.03%
+Denied; Dismissed; Remanded                               2    0.03%
+Affirmed; Reversed                                        2    0.03%
+Dismissed; Granted                                        2    0.03%
+Stayed                                                    1    0.02%
+Abeyance                                                  1    0.02%
+Denied; Remanded; Vacated                                 1    0.02%
+Affirmed; Vacated                                         1    0.02%
+Granted; Remanded; Vacated                                1    0.02%
+Granted; Remanded; Reversed                               1    0.02%
+Pending                                                   1    0.02%
+Certified Question                                        1    0.02%

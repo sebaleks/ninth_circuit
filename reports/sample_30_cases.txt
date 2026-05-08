@@ -1,0 +1,57 @@
+SAMPLE OF 30 ASYLUM CASES  (seed=7)
+========================================================================================================================
+#    Status        Sample Group     Canonical Label                           Chars   Link
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+── Published (──────────────────────────────────────────────────────────────────────────────────────────────────────────────)
+1    Published     Denied           Denied                                   31,216   https://cdn.ca9.uscourts.gov/datastore/opinions/2022/09/14/21-70493.pdf
+2    Published     Denied           Denied                                   16,755   https://cdn.ca9.uscourts.gov/datastore/opinions/2020/12/21/17-72197.pdf
+3    Published     Denied           Denied                                   24,789   https://cdn.ca9.uscourts.gov/datastore/opinions/2025/04/23/23-3858.pdf
+4    Published     Denied           Denied                                   28,676   https://cdn.ca9.uscourts.gov/datastore/opinions/2022/04/26/16-72752.pdf
+5    Published     Remanded         Remanded                                 82,457   https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf
+6    Published     Remanded         Remanded                                 57,525   https://cdn.ca9.uscourts.gov/datastore/opinions/2023/08/15/19-70961.pdf
+7    Published     Remanded         Remanded                                 28,385   https://cdn.ca9.uscourts.gov/datastore/opinions/2021/12/14/15-71553.pdf
+8    Published     Remanded         Remanded                                 21,762   https://cdn.ca9.uscourts.gov/datastore/opinions/2026/01/20/23-4420.pdf
+9    Published     Granted          Granted                                 108,152   https://cdn.ca9.uscourts.gov/datastore/opinions/2025/08/27/24-631.pdf
+10   Published     Granted          Granted                                 108,263   https://cdn.ca9.uscourts.gov/datastore/opinions/2020/07/06/19-16487.pdf
+11   Published     Granted          Granted                                 131,889   https://cdn.ca9.uscourts.gov/datastore/opinions/2025/07/18/25-2581.pdf
+12   Published     Granted          Granted                                 206,986   https://cdn.ca9.uscourts.gov/datastore/opinions/2021/03/24/18-17274.pdf
+13   Published     Random (other)   Denied; Granted; Remanded                48,236   https://cdn.ca9.uscourts.gov/datastore/opinions/2021/08/25/20-70127.pdf
+14   Published     Random (other)   Affirmed                                121,578   https://cdn.ca9.uscourts.gov/datastore/opinions/2020/02/28/18-17274.pdf
+15   Published     Random (other)   Certified Question                       16,375   https://cdn.ca9.uscourts.gov/datastore/opinions/2020/05/04/16-73915.pdf
+
+── Unpublished (──────────────────────────────────────────────────────────────────────────────────────────────────────────────)
+16   Unpublished   Denied           Denied                                    8,328   https://cdn.ca9.uscourts.gov/datastore/memoranda/2022/08/12/20-70397.pdf
+17   Unpublished   Denied           Denied                                    4,918   https://cdn.ca9.uscourts.gov/datastore/memoranda/2023/01/17/17-73156.pdf
+18   Unpublished   Denied           Denied                                    4,542   https://cdn.ca9.uscourts.gov/datastore/memoranda/2026/05/04/24-5221.pdf
+19   Unpublished   Denied           Denied                                    4,432   https://cdn.ca9.uscourts.gov/datastore/memoranda/2023/04/20/22-761.pdf
+20   Unpublished   Remanded         Remanded                                  7,148   https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/01/28/14-70905.pdf
+21   Unpublished   Remanded         Remanded                                  4,218   https://cdn.ca9.uscourts.gov/datastore/memoranda/2024/02/20/22-629.pdf
+22   Unpublished   Remanded         Remanded                                  7,536   https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/06/17/17-71346.pdf
+23   Unpublished   Remanded         Remanded                                  9,150   https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/12/16/25-120.pdf
+24   Unpublished   Granted          Granted                                  16,566   https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/12/07/18-70505.pdf
+25   Unpublished   Granted          Granted                                   1,791   https://cdn.ca9.uscourts.gov/datastore/memoranda/2021/01/28/18-71905.pdf
+26   Unpublished   Granted          Granted                                   4,365   https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/07/17/18-70084.pdf
+27   Unpublished   Granted          Granted                                  16,649   https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/05/16/24-2787.pdf
+28   Unpublished   Random (other)   Denied; Dismissed                         2,337   https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/08/10/17-70324.pdf
+29   Unpublished   Random (other)   Denied; Granted; Remanded                20,244   https://cdn.ca9.uscourts.gov/datastore/memoranda/2021/05/10/20-71340.pdf
+30   Unpublished   Random (other)   Denied; Dismissed                         3,146   https://cdn.ca9.uscourts.gov/datastore/memoranda/2021/03/23/19-71833.pdf
+
+========================================================================================================================
+BREAKDOWN
+========================================================================================================================
+
+Published:
+  Denied               4 cases
+  Remanded             4 cases
+  Granted              4 cases
+  Random (other)       3 cases
+
+Unpublished:
+  Denied               4 cases
+  Remanded             4 cases
+  Granted              4 cases
+  Random (other)       3 cases
+
+Total: 30 cases
+Seed : 7
