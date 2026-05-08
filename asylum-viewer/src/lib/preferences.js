@@ -1,8 +1,19 @@
 import { VISIBLE_COLUMNS } from './columns'
 
+const DEFAULT_VISIBLE = [
+  'link',
+  'published_status',
+  'date_filed',
+  'country_of_origin',
+  'final_disposition',
+]
+
 export const DEFAULT_LAYOUT = {
-  columnOrder: VISIBLE_COLUMNS,
-  hiddenColumns: [],
+  columnOrder: [
+    ...DEFAULT_VISIBLE,
+    ...VISIBLE_COLUMNS.filter(c => !DEFAULT_VISIBLE.includes(c)),
+  ],
+  hiddenColumns: VISIBLE_COLUMNS.filter(c => !DEFAULT_VISIBLE.includes(c)),
   frozenCols: 0,
   frozenRows: 0,
 }
