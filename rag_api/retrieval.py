@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import faiss  # type: ignore
@@ -17,6 +18,36 @@ META_PATH = _REPO_ROOT / "data" / "metadata.parquet"
 # Module-level singletons loaded once at import (FastAPI startup)
 INDEX: faiss.Index | None = None
 META: pd.DataFrame | None = None
+
+# Keyword-boost weight: pure-dense retrieval can miss obvious literal matches
+# (e.g. query "Honduras" surfacing passages that don't contain the word).
+# We add this per-query-token-found to the rerank sigmoid score before sorting,
+# which gently floors any chunk that contains the user's literal terms.
+# Tuning: the rerank sigmoid is typically 0.001-0.99; 0.10 / token is enough
+# to lift literal matches above pure-semantic near-misses without overwhelming
+# strong semantic signals.
+KEYWORD_BOOST = 0.10
+_STOPWORDS = {
+    "the", "and", "for", "with", "from", "that", "this", "what",
+    "where", "when", "which", "who", "whom", "does", "did", "was",
+    "were", "are", "have", "has", "had", "but", "not", "all",
+    "any", "some", "into", "about", "case", "cases",
+}
+
+
+def _query_tokens(query: str) -> list[str]:
+    """Lowercase alphanumeric tokens of length >= 3, excluding common stopwords."""
+    return [
+        t for t in re.findall(r"[a-z0-9]+", query.lower())
+        if len(t) >= 3 and t not in _STOPWORDS
+    ]
+
+
+def _keyword_boost(query_tokens: list[str], snippet: str) -> float:
+    if not query_tokens:
+        return 0.0
+    lower = snippet.lower()
+    return KEYWORD_BOOST * sum(1 for t in query_tokens if t in lower)
 
 
 def load() -> None:
@@ -66,20 +97,40 @@ def search_dense(query: str, k: int = 20) -> list[dict]:
 
 
 def search_with_rerank(query: str, fetch_k: int = 20, return_k: int = 5) -> list[dict]:
-    """Dense retrieve top-`fetch_k`, then rerank to top-`return_k`.
+    """Dense retrieve top-`fetch_k`, then rerank, then keyword-boost, then dedupe by case.
 
-    Each hit dict has BOTH:
+    Each returned hit has:
       - `dense_score`: original FAISS cosine (used for refusal threshold)
-      - `score`: rerank sigmoid (used for ordering + shown in API response)
+      - `score`: rerank sigmoid + per-token keyword boost (ordering signal)
+
+    Returns at most `return_k` results, one per unique case_link (the
+    highest-scoring chunk per case is kept).
     """
-    hits = search_dense(query, k=fetch_k)
+    # Fetch a wider pool so we still have enough unique cases after dedupe
+    pool_size = max(fetch_k, return_k * 5)
+    hits = search_dense(query, k=pool_size)
     if not hits:
         return []
+
     # Preserve the dense cosine separately before overwriting with rerank score
     for h in hits:
         h["dense_score"] = h["score"]
+
     rerank_scores = nvidia_client.rerank(query, [h["snippet"] for h in hits])
+    tokens = _query_tokens(query)
     for h, s in zip(hits, rerank_scores):
-        h["score"] = float(s)
+        h["score"] = float(s) + _keyword_boost(tokens, h["snippet"])
+
     hits.sort(key=lambda h: h["score"], reverse=True)
-    return hits[:return_k]
+
+    # Dedupe: one chunk per case, keep the highest-scoring (first after sort)
+    seen: set[str] = set()
+    deduped: list[dict] = []
+    for h in hits:
+        if h["case_link"] in seen:
+            continue
+        seen.add(h["case_link"])
+        deduped.append(h)
+        if len(deduped) >= return_k:
+            break
+    return deduped

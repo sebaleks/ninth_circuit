@@ -147,6 +147,109 @@ def test_search_dense_skips_negative_indices(monkeypatch):
     assert hits[0]["case_link"] == "only.pdf"
 
 
+# ── Query-token extraction + keyword boost (no mocks) ──────────────────────
+
+def test_query_tokens_strips_stopwords_and_short():
+    from rag_api.retrieval import _query_tokens
+    assert _query_tokens("What cases from Honduras?") == ["honduras"]
+    assert _query_tokens("the and for") == []           # all stopwords
+    assert _query_tokens("a") == []                     # too short
+    assert _query_tokens("gang persecution") == ["gang", "persecution"]
+
+
+def test_keyword_boost_counts_unique_tokens_in_snippet():
+    from rag_api.retrieval import _keyword_boost, KEYWORD_BOOST
+    # "honduras" appears in the snippet → 1 token match → 1 * BOOST
+    assert _keyword_boost(["honduras"], "natives and citizens of Honduras") == pytest.approx(KEYWORD_BOOST)
+    # Neither token present → 0
+    assert _keyword_boost(["honduras", "guatemala"], "general legal text") == pytest.approx(0.0)
+    # Both present → 2 * BOOST
+    assert _keyword_boost(["honduras", "asylum"], "Honduras asylum case") == pytest.approx(2 * KEYWORD_BOOST)
+    # Case-insensitive
+    assert _keyword_boost(["honduras"], "HONDURAS") == pytest.approx(KEYWORD_BOOST)
+
+
+# ── search_with_rerank: dedup + keyword-boost integration ────────────────────
+
+def test_search_with_rerank_dedupes_by_case_link(monkeypatch):
+    """Multiple chunks from the same case collapse to one (highest-scoring) hit."""
+    from rag_api import retrieval, nvidia_client
+
+    # 4 chunks from 2 cases (case A has 3 chunks, case B has 1)
+    fake_meta = pd.DataFrame({
+        "chunk_id":         [0, 1, 2, 3],
+        "case_link":        ["A.pdf", "A.pdf", "A.pdf", "B.pdf"],
+        "text":             ["a1", "a2", "a3", "b1"],
+        "page":             [1, 2, 3, 1],
+        "case_pub_status":  [""] * 4,
+        "case_disposition": [""] * 4,
+    })
+
+    class FakeIndex:
+        ntotal = 4
+        def search(self, q, k):
+            # Return all 4 in order by chunk_id
+            return np.array([[0.5, 0.45, 0.4, 0.35]]), np.array([[0, 1, 2, 3]])
+
+    monkeypatch.setattr(retrieval, "INDEX", FakeIndex())
+    monkeypatch.setattr(retrieval, "META", fake_meta)
+    monkeypatch.setattr(
+        nvidia_client, "embed_query",
+        lambda text: np.zeros((1, 2048), dtype=np.float32),
+    )
+    # Rerank returns scores in same order: A's a1 best, then a2, a3, b1
+    monkeypatch.setattr(
+        nvidia_client, "rerank",
+        lambda q, passages: [0.8, 0.7, 0.6, 0.5],
+    )
+
+    hits = retrieval.search_with_rerank("anything", fetch_k=4, return_k=5)
+    # Should return only 2 hits (one per case), not 4
+    assert len(hits) == 2
+    case_links = [h["case_link"] for h in hits]
+    assert case_links == ["A.pdf", "B.pdf"]
+    # The kept chunk from case A is the highest-scoring one (a1)
+    assert hits[0]["snippet"] == "a1"
+
+
+def test_search_with_rerank_keyword_boost_lifts_literal_matches(monkeypatch):
+    """A passage containing the query keyword surfaces above semantic near-misses."""
+    from rag_api import retrieval, nvidia_client
+
+    fake_meta = pd.DataFrame({
+        "chunk_id":         [0, 1],
+        "case_link":        ["A.pdf", "B.pdf"],
+        "text":             ["the court denied the petition",   # no "Honduras"
+                             "natives and citizens of Honduras"],
+        "page":             [1, 1],
+        "case_pub_status":  ["", ""],
+        "case_disposition": ["", ""],
+    })
+
+    class FakeIndex:
+        ntotal = 2
+        def search(self, q, k):
+            return np.array([[0.5, 0.45]]), np.array([[0, 1]])
+
+    monkeypatch.setattr(retrieval, "INDEX", FakeIndex())
+    monkeypatch.setattr(retrieval, "META", fake_meta)
+    monkeypatch.setattr(
+        nvidia_client, "embed_query",
+        lambda text: np.zeros((1, 2048), dtype=np.float32),
+    )
+    # Rerank prefers the first passage (semantic match without the keyword)
+    monkeypatch.setattr(
+        nvidia_client, "rerank",
+        lambda q, passages: [0.05, 0.02],
+    )
+
+    hits = retrieval.search_with_rerank("Honduras", fetch_k=2, return_k=2)
+    # The keyword boost (+0.10) flips the order so B.pdf — which mentions
+    # "Honduras" — ends up above A.pdf
+    assert hits[0]["case_link"] == "B.pdf"
+    assert hits[1]["case_link"] == "A.pdf"
+
+
 # ── Health endpoint — uses FastAPI TestClient + lifespan ────────────────────
 
 def test_health_endpoint_shape(monkeypatch):
