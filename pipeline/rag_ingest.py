@@ -34,13 +34,15 @@ except ImportError:
     pass
 
 import faiss  # type: ignore
-import mlflow
 import numpy as np
 import pandas as pd
-import pymupdf  # type: ignore
 import requests
 import tiktoken
 from openai import OpenAI
+
+# mlflow and pymupdf are only needed by the CLI entrypoint, not by the pure
+# helpers that unit tests exercise. Imported lazily inside the functions that
+# use them so test environments don't need to install them.
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -73,6 +75,7 @@ def download_pdf(url: str, timeout: int = 120) -> bytes:
 
 def extract_pages(pdf_bytes: bytes) -> list[str]:
     """Return a list[str] with one element per page."""
+    import pymupdf  # lazy: only needed by the CLI ingest path, not by tests
     pages: list[str] = []
     with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
         for page in doc:
@@ -292,7 +295,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # MLflow run (matches pattern in experiments/run_extraction_experiment.py)
+    # MLflow run (matches pattern in experiments/run_extraction_experiment.py).
+    # Imported lazily so unit tests don't need to install mlflow.
+    import mlflow
+
     db_url = os.environ.get("DATABASE_URL")
     if db_url:
         mlflow.set_tracking_uri(db_url)
