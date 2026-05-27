@@ -35,6 +35,7 @@ class ChatResponse(BaseModel):
 class SearchResponse(BaseModel):
     hits: list[Citation]
     latency_ms: int
+    refused: bool = False
 
 
 class HealthResponse(BaseModel):

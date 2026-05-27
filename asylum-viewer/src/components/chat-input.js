@@ -25,7 +25,7 @@ export default function ChatInput({ onSubmit, disabled }) {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKey}
-        placeholder="Ask about these cases…  (⌘/Ctrl + Enter to send)"
+        placeholder="Search the corpus…  (⌘/Ctrl + Enter)"
         rows={2}
         disabled={disabled}
         className="w-full bg-filter-bg border border-border text-text text-sm p-2 resize-none focus:outline-none focus:border-accent font-mono"

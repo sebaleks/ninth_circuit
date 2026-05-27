@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { chat as chatApi } from '@/lib/rag-client'
+import { search as searchApi } from '@/lib/rag-client'
 import ChatInput from './chat-input'
 import ChatMessages from './chat-messages'
 
@@ -26,17 +26,16 @@ export default function ChatPanel() {
     } catch {}
   }, [open])
 
-  const handleSubmit = async (question) => {
-    setMessages((m) => [...m, { role: 'user', content: question }])
+  const handleSubmit = async (query) => {
+    setMessages((m) => [...m, { role: 'user', content: query }])
     setLoading(true)
     try {
-      const resp = await chatApi(question, 5)
+      const resp = await searchApi(query, 5)
       setMessages((m) => [
         ...m,
         {
           role: 'assistant',
-          content: resp.answer,
-          citations: resp.citations || [],
+          citations: resp.hits || [],
           latency_ms: resp.latency_ms,
           refused: resp.refused,
         },
@@ -61,12 +60,12 @@ export default function ChatPanel() {
         type="button"
         onClick={() => setOpen(true)}
         className="hidden sm:flex fixed top-1/2 right-0 -translate-y-1/2 z-30 flex-col items-center gap-2 bg-drawer-bg border border-r-0 border-border px-2 py-3 text-text hover:border-accent hover:text-accent transition-colors"
-        title="Open chat"
-        aria-label="Open chat"
+        title="Open case search"
+        aria-label="Open case search"
       >
-        <span className="text-base">💬</span>
+        <span className="text-base">🔎</span>
         <span className="text-[10px] font-mono tracking-wider uppercase [writing-mode:vertical-rl]">
-          Chat
+          Search
         </span>
       </button>
     )
@@ -76,14 +75,14 @@ export default function ChatPanel() {
     <aside className="hidden sm:flex flex-col w-[400px] shrink-0 border-l border-border bg-drawer-bg">
       {/* Testing-mode banner — always visible while panel is open */}
       <div className="bg-yes-bg text-yes-text border-b border-border px-3 py-2 text-[11px] font-mono tracking-wider leading-snug">
-        🧪 TESTING MODE — answers may be incorrect; verify against the cited PDFs.
+        🧪 TESTING MODE — retrieval may miss relevant cases; always verify against the cited PDFs.
       </div>
 
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs tracking-wider uppercase text-text font-semibold">
-            RAG Chat
+            Case Search
           </span>
           <span className="text-[9px] font-mono tracking-wider px-1.5 py-0.5 bg-no-bg text-no-text uppercase">
             beta

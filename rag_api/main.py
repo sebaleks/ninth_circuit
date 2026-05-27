@@ -80,9 +80,17 @@ def search(req: SearchRequest) -> SearchResponse:
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"upstream error: {e}") from e
     latency_ms = int((time.perf_counter() - t0) * 1000)
+
+    # Apply the same dense-score refusal threshold as /chat so out-of-corpus
+    # queries don't return noise. The dense score is more uniformly
+    # calibrated than the rerank sigmoid.
+    if guardrails.should_refuse([h.get("dense_score", h["score"]) for h in hits]):
+        return SearchResponse(hits=[], latency_ms=latency_ms, refused=True)
+
     return SearchResponse(
         hits=[Citation(**h) for h in hits],
         latency_ms=latency_ms,
+        refused=False,
     )
 
 
