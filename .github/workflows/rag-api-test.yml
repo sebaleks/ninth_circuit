@@ -15,6 +15,7 @@ on:
       - pipeline/rag_ingest.py
       - evaluation/**
       - tests/test_rag_*.py
+      - .github/workflows/rag-api-test.yml
 
 permissions:
   contents: read
