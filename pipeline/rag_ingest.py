@@ -260,7 +260,7 @@ def run(source_csv: Path) -> dict:
     meta_df.insert(0, "chunk_id", np.arange(len(meta_df), dtype=np.int64))
     meta_df.to_parquet(META_PATH, compression="snappy", index=False)
 
-    print(f"\nWrote:")
+    print("\nWrote:")
     print(f"  {INDEX_PATH}  ({INDEX_PATH.stat().st_size / 1024:.1f} KB)")
     print(f"  {META_PATH}   ({META_PATH.stat().st_size / 1024:.1f} KB)")
 

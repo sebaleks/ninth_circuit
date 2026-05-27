@@ -285,7 +285,7 @@ def main() -> None:
     result = run(base)
 
     s = result["summary"]
-    print(f"\n=== SUMMARY ===")
+    print("\n=== SUMMARY ===")
     print(f"  Groundedness:        {s['groundedness_pct'] * 100:.1f}% over {s['n_in_corpus_eval']} in-corpus answers")
     print(f"  Citation accuracy:   {s['citation_acc_avg'] * 100:.1f}% (avg per-citation support)")
     print(f"  Refusal correctness: {s['refusal_acc_pct'] * 100:.1f}%")
@@ -298,7 +298,7 @@ def main() -> None:
     (RESULTS_DIR / "latest.json").write_text(json.dumps(result, indent=2))
     write_chart(s, RESULTS_DIR / "latest.png")
 
-    print(f"\nWrote:")
+    print("\nWrote:")
     print(f"  {dated_path}")
     print(f"  {RESULTS_DIR / 'latest.json'}")
     print(f"  {RESULTS_DIR / 'latest.png'}")
