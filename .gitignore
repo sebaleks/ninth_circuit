@@ -11,11 +11,11 @@ ninthc/
 *.egg-info/
 mlflow.db
 
-# Data (large, regenerable)
+# Data (large, regenerable) — except FAISS index + metadata (tracked via Git LFS)
 data/*
 !data/.gitkeep
-!data/index.faiss          # FAISS index (Git LFS)
-!data/metadata.parquet     # chunk metadata (Git LFS)
+!data/index.faiss
+!data/metadata.parquet
 ca9_*_opinions/
 *.csv
 !logs/*.csv
