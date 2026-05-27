@@ -1,6 +1,7 @@
 name: RAG API deploy
 
 on:
+  workflow_dispatch: {}
   push:
     branches: [main]
     paths:
@@ -24,6 +25,31 @@ jobs:
             echo "❌ RENDER_DEPLOY_HOOK secret is not set" >&2
             exit 1
           fi
+
+          # Don't echo the URL itself (it contains the auth key), but show enough
+          # to diagnose pasting errors.
+          length=${#DEPLOY_HOOK}
+          prefix="${DEPLOY_HOOK:0:35}"
+          echo "DEPLOY_HOOK length: $length chars"
+          echo "DEPLOY_HOOK prefix: ${prefix}…"
+
+          if [[ "$DEPLOY_HOOK" != https://api.render.com/deploy/* ]]; then
+            echo "❌ DEPLOY_HOOK does not start with https://api.render.com/deploy/" >&2
+            echo "   Expected format: https://api.render.com/deploy/srv-XXXX?key=XXXX" >&2
+            exit 1
+          fi
+          if [[ "$DEPLOY_HOOK" != *"?key="* ]]; then
+            echo "❌ DEPLOY_HOOK has no ?key= query param — secret looks malformed" >&2
+            exit 1
+          fi
+
           echo "Triggering Render deploy…"
-          response=$(curl -sf -X POST "$DEPLOY_HOOK")
-          echo "Render response: $response"
+          # -w prints HTTP status; -o /tmp/body captures body for echo
+          status=$(curl -sS -X POST -o /tmp/body -w "%{http_code}" "$DEPLOY_HOOK")
+          body=$(cat /tmp/body)
+          echo "HTTP status: $status"
+          echo "Render response body: $body"
+          if [ "$status" -ge 400 ]; then
+            echo "❌ Deploy hook returned HTTP $status — check the URL is the latest Deploy Hook from Render → Settings" >&2
+            exit 1
+          fi
