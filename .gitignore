@@ -19,6 +19,7 @@ data/*
 ca9_*_opinions/
 *.csv
 !logs/*.csv
+!evaluation/results/*.csv
 
 # System
 .DS_Store
