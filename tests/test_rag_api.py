@@ -147,7 +147,7 @@ def test_search_dense_skips_negative_indices(monkeypatch):
     assert hits[0]["case_link"] == "only.pdf"
 
 
-# ── Query-token extraction + keyword boost (no mocks) ──────────────────────
+# ── Query-token extraction + BM25 hybrid (no mocks) ────────────────────────
 
 def test_query_tokens_strips_stopwords_and_short():
     from rag_api.retrieval import _query_tokens
@@ -157,19 +157,58 @@ def test_query_tokens_strips_stopwords_and_short():
     assert _query_tokens("gang persecution") == ["gang", "persecution"]
 
 
-def test_keyword_boost_counts_unique_tokens_in_snippet():
-    from rag_api.retrieval import _keyword_boost, KEYWORD_BOOST
-    # "honduras" appears in the snippet → 1 token match → 1 * BOOST
-    assert _keyword_boost(["honduras"], "natives and citizens of Honduras") == pytest.approx(KEYWORD_BOOST)
-    # Neither token present → 0
-    assert _keyword_boost(["honduras", "guatemala"], "general legal text") == pytest.approx(0.0)
-    # Both present → 2 * BOOST
-    assert _keyword_boost(["honduras", "asylum"], "Honduras asylum case") == pytest.approx(2 * KEYWORD_BOOST)
-    # Case-insensitive
-    assert _keyword_boost(["honduras"], "HONDURAS") == pytest.approx(KEYWORD_BOOST)
+def test_bm25_scores_normalize_to_unit(monkeypatch):
+    """BM25 per-query scores are normalized so max == 1 (or all zeros)."""
+    from rag_api import retrieval
+    import rag_api.retrieval as r
+
+    fake_meta = pd.DataFrame({
+        "chunk_id":         [0, 1, 2],
+        "case_link":        ["a.pdf", "b.pdf", "c.pdf"],
+        "text":             [
+            "natives and citizens of Honduras seek asylum",
+            "the court considered the petition",
+            "Honduras is the country of origin",
+        ],
+        "page":             [1, 1, 1],
+        "case_pub_status":  [""] * 3,
+        "case_disposition": [""] * 3,
+    })
+    monkeypatch.setattr(retrieval, "META", fake_meta)
+    # Force the cached BM25 to rebuild against the fake corpus
+    monkeypatch.setattr(retrieval, "_BM25", None)
+    monkeypatch.setattr(retrieval, "_BM25_META_ID", None)
+
+    scores = r._bm25_scores_for_query("honduras")
+    assert scores.shape == (3,)
+    # At least one chunk should hit the keyword; max is normalized to 1.0
+    assert scores.max() == pytest.approx(1.0)
+    # The "petition" chunk doesn't contain "honduras"
+    assert scores[1] == 0.0
 
 
-# ── search_with_rerank: dedup + keyword-boost integration ────────────────────
+def test_bm25_scores_all_zero_for_empty_token_query(monkeypatch):
+    from rag_api import retrieval
+    import rag_api.retrieval as r
+
+    fake_meta = pd.DataFrame({
+        "chunk_id":         [0, 1],
+        "case_link":        ["a.pdf", "b.pdf"],
+        "text":             ["foo bar", "baz qux"],
+        "page":             [1, 1],
+        "case_pub_status":  [""] * 2,
+        "case_disposition": [""] * 2,
+    })
+    monkeypatch.setattr(retrieval, "META", fake_meta)
+    monkeypatch.setattr(retrieval, "_BM25", None)
+    monkeypatch.setattr(retrieval, "_BM25_META_ID", None)
+
+    # All tokens stripped as stopwords → no signal
+    scores = r._bm25_scores_for_query("the and for")
+    assert (scores == 0.0).all()
+
+
+# ── search_with_rerank: dedup + hybrid (rerank + BM25) integration ──────────
 
 def test_search_with_rerank_dedupes_by_case_link(monkeypatch):
     """Multiple chunks from the same case collapse to one (highest-scoring) hit."""
@@ -193,6 +232,8 @@ def test_search_with_rerank_dedupes_by_case_link(monkeypatch):
 
     monkeypatch.setattr(retrieval, "INDEX", FakeIndex())
     monkeypatch.setattr(retrieval, "META", fake_meta)
+    monkeypatch.setattr(retrieval, "_BM25", None)         # force rebuild on this corpus
+    monkeypatch.setattr(retrieval, "_BM25_META_ID", None)
     monkeypatch.setattr(
         nvidia_client, "embed_query",
         lambda text: np.zeros((1, 2048), dtype=np.float32),
@@ -203,7 +244,8 @@ def test_search_with_rerank_dedupes_by_case_link(monkeypatch):
         lambda q, passages: [0.8, 0.7, 0.6, 0.5],
     )
 
-    hits = retrieval.search_with_rerank("anything", fetch_k=4, return_k=5)
+    # Query has no overlap with corpus → BM25 contributes 0, rerank fully decides
+    hits = retrieval.search_with_rerank("xyzzy", fetch_k=4, return_k=5)
     # Should return only 2 hits (one per case), not 4
     assert len(hits) == 2
     case_links = [h["case_link"] for h in hits]
@@ -212,42 +254,65 @@ def test_search_with_rerank_dedupes_by_case_link(monkeypatch):
     assert hits[0]["snippet"] == "a1"
 
 
-def test_search_with_rerank_keyword_boost_lifts_literal_matches(monkeypatch):
-    """A passage containing the query keyword surfaces above semantic near-misses."""
+def test_search_with_rerank_bm25_lifts_literal_matches(monkeypatch):
+    """BM25 hybrid scoring surfaces passages that literally contain the query word
+    above semantic near-misses, fixing the 'Honduras → top-hit-has-no-Honduras' bug.
+
+    Note: BM25 IDF needs a corpus of meaningful size — with only 2 docs and the
+    query term in 1, IDF collapses to ~0. So we seed a small corpus with several
+    decoy chunks that don't contain the keyword.
+    """
     from rag_api import retrieval, nvidia_client
 
+    # 6 chunks total: only B.pdf's chunk (#5) contains "honduras". Decoy chunks
+    # give BM25 enough corpus stats to make "honduras" a high-IDF term.
     fake_meta = pd.DataFrame({
-        "chunk_id":         [0, 1],
-        "case_link":        ["A.pdf", "B.pdf"],
-        "text":             ["the court denied the petition",   # no "Honduras"
-                             "natives and citizens of Honduras"],
-        "page":             [1, 1],
-        "case_pub_status":  ["", ""],
-        "case_disposition": ["", ""],
+        "chunk_id":         list(range(6)),
+        "case_link":        ["A.pdf"] + ["decoy.pdf"] * 4 + ["B.pdf"],
+        "text":             [
+            "the court denied the petition for review",            # A.pdf — top dense hit, no "Honduras"
+            "credibility findings against the petitioner",
+            "withholding of removal granted in part",
+            "internal relocation reasonable in this case",
+            "the government appealed the immigration ruling",
+            "natives and citizens of Honduras seek asylum",        # B.pdf — mentions Honduras
+        ],
+        "page":             [1] * 6,
+        "case_pub_status":  [""] * 6,
+        "case_disposition": [""] * 6,
     })
 
     class FakeIndex:
-        ntotal = 2
+        ntotal = 6
         def search(self, q, k):
-            return np.array([[0.5, 0.45]]), np.array([[0, 1]])
+            # Only A.pdf and B.pdf survive FAISS top-2; the decoys score below
+            return np.array([[0.5, 0.45]]), np.array([[0, 5]])
 
     monkeypatch.setattr(retrieval, "INDEX", FakeIndex())
     monkeypatch.setattr(retrieval, "META", fake_meta)
+    monkeypatch.setattr(retrieval, "_BM25", None)
+    monkeypatch.setattr(retrieval, "_BM25_META_ID", None)
     monkeypatch.setattr(
         nvidia_client, "embed_query",
         lambda text: np.zeros((1, 2048), dtype=np.float32),
     )
-    # Rerank prefers the first passage (semantic match without the keyword)
+    # Rerank prefers A.pdf (semantic match without the keyword). BM25 should
+    # overpower this because "honduras" is in B.pdf but not A.pdf, and BM25
+    # gives "honduras" a high IDF (rare in the corpus).
     monkeypatch.setattr(
         nvidia_client, "rerank",
         lambda q, passages: [0.05, 0.02],
     )
 
     hits = retrieval.search_with_rerank("Honduras", fetch_k=2, return_k=2)
-    # The keyword boost (+0.10) flips the order so B.pdf — which mentions
-    # "Honduras" — ends up above A.pdf
+    # BM25 contribution flips the order: B.pdf above A.pdf
     assert hits[0]["case_link"] == "B.pdf"
     assert hits[1]["case_link"] == "A.pdf"
+    # BM25 + rerank are both present on the hit dict
+    assert "rerank_score" in hits[0]
+    assert "bm25_score" in hits[0]
+    assert hits[0]["bm25_score"] == pytest.approx(1.0)  # normalized max
+    assert hits[1]["bm25_score"] == pytest.approx(0.0)  # no "honduras"
 
 
 # ── Health endpoint — uses FastAPI TestClient + lifespan ────────────────────
