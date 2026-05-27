@@ -29,7 +29,7 @@ jobs:
 
       - name: Run eval against live RAG API
         env:
-          RAG_API_URL: ${{ secrets.RAG_API_URL_PUBLIC }}
+          RAG_API_URL: ${{ secrets.RAG_API_URL }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           NVIDIA_BASE_URL: https://integrate.api.nvidia.com/v1
         run: python evaluation/run_eval.py --against $RAG_API_URL
