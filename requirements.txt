@@ -14,3 +14,13 @@ mlflow==3.10.1
 psycopg2-binary==2.9.10
 selenium==4.31.0
 python-dotenv==1.0.1
+
+# RAG pipeline + backend
+faiss-cpu==1.14.2
+pyarrow==23.0.1
+pandas==2.3.3
+tiktoken==0.13.0
+numpy==2.4.3
+fastapi==0.135.1
+uvicorn[standard]==0.42.0
+pydantic==2.12.5

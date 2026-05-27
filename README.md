@@ -85,12 +85,16 @@ Three tables in Supabase:
 ## Project Structure
 
 ```
-pipeline/          Core pipeline (fetch, classify_free, extract, backfill)
+pipeline/          Core pipeline (fetch, classify_free, extract, backfill, rag_ingest)
+rag_api/           FastAPI backend for the RAG chatbot (deployed on Render)
+data/              FAISS index + chunk metadata (Git LFS)
+evaluation/        RAG eval harness (questions + groundedness/citation/latency)
 lib/               Shared utilities (Supabase client, Gemini client, config)
 cloud/             GCP deployment (Dockerfile, deploy.sh, Cloud Run entry points)
 experiments/       MLflow experiment tracking (local server startup script, artifacts)
-asylum-viewer/     Next.js frontend (deployed on Vercel)
+asylum-viewer/     Next.js frontend (deployed on Vercel) — table + chat panel
 logs/              Per-provider CSV logs of classifier runs
+reports/           Stats outputs and curated sample CSVs
 ```
 
 ## Setup
@@ -116,10 +120,21 @@ Required variables:
 - `SUPABASE_SECRET_KEY` — Supabase service-role key (admin access)
 - `GCP_PROJECT_ID` — Google Cloud project ID
 - `GCP_REGION` — GCP region (default: us-central1)
+- `NVIDIA_API_KEY` — NVIDIA NIM free-tier key (for classify, extract, and RAG)
 
 ### 3. Run database migrations
 
 Execute the SQL files in `db/migrations/` in order via the Supabase SQL editor.
+
+### 4. (RAG only) Install Git LFS
+
+The FAISS index and chunk-metadata Parquet are tracked via Git LFS:
+
+```bash
+brew install git-lfs    # or apt-get install git-lfs
+git lfs install
+git lfs pull            # pull data/index.faiss + data/metadata.parquet
+```
 
 ## Usage
 
@@ -227,3 +242,77 @@ The **asylum-viewer** (`asylum-viewer/`) is a Next.js app deployed on Vercel tha
 ## Opinion Length Distribution
 
 ![Char Count Distribution](assets/char_count_distribution.png)
+
+## RAG: similar-case search + Q&A chat
+
+`rag_api/` exposes a Retrieval-Augmented Generation chatbot over the same asylum corpus.
+The chat panel lives on the right side of `/cases` in the asylum-viewer (Vercel) and calls
+the FastAPI backend on Render free tier. All inference goes through NVIDIA NIM free-tier
+models — no GCP, no paid services. See [`design-and-evaluation.md`](design-and-evaluation.md)
+for the full design rationale and the latest eval numbers.
+
+### Architecture (RAG layer)
+
+```
+                       browser
+                          │
+              https://asylum-viewer.vercel.app/cases
+                          ▼
+       asylum-viewer (Next.js · Vercel)        ┐
+         /cases + chat panel                    │ proxies POST /api/rag/chat
+                                                │ through to $RAG_API_URL
+                                                ▼
+       rag-api (FastAPI · Render free tier)     ─ data/index.faiss   (Git LFS)
+         POST /chat                              ─ data/metadata.parquet (Git LFS)
+         POST /search
+         GET  /health
+                          │
+                          ▼
+       NVIDIA NIM (free tier, single API key)
+         embed:  nvidia/llama-nemotron-embed-1b-v2    (2048-dim, 2048-tok)
+         rerank: nvidia/llama-nemotron-rerank-1b-v2
+         gen:    meta/llama-3.3-70b-instruct
+```
+
+### Run ingest locally
+
+```bash
+set -a && source .env && set +a
+source ninthc/bin/activate
+
+# Embed the 30 curated cases (~30s download + ~30s NVIDIA embedding)
+python3 pipeline/rag_ingest.py --source reports/sample_30_cases.csv
+
+# Smoke check: index size
+python3 -c "import faiss; print(faiss.read_index('data/index.faiss').ntotal)"
+
+# Commit (Git LFS will upload the binary)
+git add .gitattributes data/index.faiss data/metadata.parquet
+git commit -m "rag: ingest" && git push
+```
+
+### Run evaluation
+
+```bash
+# Against a deployed RAG API (or replace with http://127.0.0.1:8000 for local)
+python3 evaluation/run_eval.py --against https://rag-api-xxx.onrender.com
+```
+
+Outputs:
+- `evaluation/results/<date>.json` — full per-question results
+- `evaluation/results/latest.json` — same content, named for the chart workflow
+- `evaluation/results/latest.png` — 3-panel summary chart
+
+### Public deployment
+
+| Component | Host         | URL pattern                                       |
+|-----------|--------------|---------------------------------------------------|
+| Frontend  | Vercel       | `https://asylum-viewer.vercel.app/cases`          |
+| Backend   | Render free  | `https://rag-api-<name>.onrender.com/health`      |
+| Vectors   | Git LFS in repo | `data/index.faiss` + `data/metadata.parquet`   |
+
+Render free tier sleeps after 15 min idle; first request after sleep takes ~30 s
+(documented in the chat UI's error path).
+
+See [`deployed.md`](deployed.md) for the live URLs and [`ai-tooling.md`](ai-tooling.md)
+for how Claude Code was used during development.

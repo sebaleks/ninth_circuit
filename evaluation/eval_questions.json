@@ -1,0 +1,28 @@
+{
+  "questions": [
+    {"id": "fac-01", "category": "factual",      "question": "Did the Ninth Circuit grant the petition in case 24-631?", "expect_refuse": false},
+    {"id": "fac-02", "category": "factual",      "question": "What was the final disposition in case 21-70493?", "expect_refuse": false},
+    {"id": "fac-03", "category": "factual",      "question": "In which countries did the petitioners face persecution according to these cases?", "expect_refuse": false},
+    {"id": "fac-04", "category": "factual",      "question": "Were any petitions remanded for further proceedings?", "expect_refuse": false},
+
+    {"id": "sim-01", "category": "similarity",   "question": "Find cases about gang-based persecution from Central America.", "expect_refuse": false},
+    {"id": "sim-02", "category": "similarity",   "question": "Find cases involving family-targeted violence.", "expect_refuse": false},
+    {"id": "sim-03", "category": "similarity",   "question": "Find cases that discuss credibility findings.", "expect_refuse": false},
+    {"id": "sim-04", "category": "similarity",   "question": "Find cases that mention the one-year filing deadline.", "expect_refuse": false},
+
+    {"id": "rea-01", "category": "reasoning",    "question": "What does the court say is required to establish past persecution?", "expect_refuse": false},
+    {"id": "rea-02", "category": "reasoning",    "question": "How does the court evaluate well-founded fear of future persecution?", "expect_refuse": false},
+    {"id": "rea-03", "category": "reasoning",    "question": "When does the court consider internal relocation reasonable?", "expect_refuse": false},
+    {"id": "rea-04", "category": "reasoning",    "question": "What standard applies to the government's ability or willingness to protect?", "expect_refuse": false},
+
+    {"id": "ele-01", "category": "elements",     "question": "What kinds of evidence support a credibility finding?", "expect_refuse": false},
+    {"id": "ele-02", "category": "elements",     "question": "When does the firm-resettlement bar apply?", "expect_refuse": false},
+    {"id": "ele-03", "category": "elements",     "question": "What constitutes a particular social group in these opinions?", "expect_refuse": false},
+    {"id": "ele-04", "category": "elements",     "question": "How is nexus established between persecution and a protected ground?", "expect_refuse": false},
+
+    {"id": "ref-01", "category": "out_of_corpus","question": "What is the weather in Boston today?", "expect_refuse": true},
+    {"id": "ref-02", "category": "out_of_corpus","question": "Who won the 2025 Super Bowl?", "expect_refuse": true},
+    {"id": "ref-03", "category": "out_of_corpus","question": "Write me a Python function that sorts a list.", "expect_refuse": true},
+    {"id": "ref-04", "category": "out_of_corpus","question": "What is the capital of France?", "expect_refuse": true}
+  ]
+}

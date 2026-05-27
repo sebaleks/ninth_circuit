@@ -1,0 +1,52 @@
+name: RAG API tests
+
+on:
+  pull_request:
+    paths:
+      - rag_api/**
+      - pipeline/rag_ingest.py
+      - evaluation/**
+      - tests/test_rag_*.py
+      - .github/workflows/rag-api-test.yml
+  push:
+    branches: [main]
+    paths:
+      - rag_api/**
+      - pipeline/rag_ingest.py
+      - evaluation/**
+      - tests/test_rag_*.py
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: rag_api/requirements.txt
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r rag_api/requirements.txt
+          pip install pytest==8.3.4 ruff==0.8.4
+
+      - name: Lint with ruff
+        run: ruff check rag_api/ pipeline/rag_ingest.py
+
+      - name: Import smoke test
+        run: python -c "import rag_api.main; print('ok')"
+
+      - name: Run unit tests
+        # tests load FAISS/Parquet from data/ — present via LFS checkout
+        run: pytest tests/test_rag_*.py -q

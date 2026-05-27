@@ -1,0 +1,29 @@
+name: RAG API deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - rag_api/**
+      - data/**
+      - render.yaml
+      - .github/workflows/rag-api-deploy.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "❌ RENDER_DEPLOY_HOOK secret is not set" >&2
+            exit 1
+          fi
+          echo "Triggering Render deploy…"
+          response=$(curl -sf -X POST "$DEPLOY_HOOK")
+          echo "Render response: $response"

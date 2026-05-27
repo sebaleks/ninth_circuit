@@ -9,9 +9,13 @@ __pycache__/
 *.pyo
 ninthc/
 *.egg-info/
+mlflow.db
 
 # Data (large, regenerable)
-data/
+data/*
+!data/.gitkeep
+!data/index.faiss          # FAISS index (Git LFS)
+!data/metadata.parquet     # chunk metadata (Git LFS)
 ca9_*_opinions/
 *.csv
 !logs/*.csv

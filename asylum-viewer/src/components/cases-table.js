@@ -13,6 +13,7 @@ import TableBody from './table-body'
 import TablePagination from './table-pagination'
 import EvidenceDrawer from './evidence-drawer'
 import CaseCard from './case-card'
+import ChatPanel from './chat-panel'
 
 const PAGE_SIZE = 50
 
@@ -205,6 +206,10 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
         onResetLayout={handleResetLayout}
       />
 
+      {/* Horizontal split: table on the left, chat panel on the right */}
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden">
+
       {/* Mobile card view */}
       <div className="block sm:hidden flex-1 overflow-y-auto p-4 space-y-3">
         {loading ? (
@@ -260,6 +265,10 @@ export default function CasesTable({ initialRows, totalCount: initialTotal }) {
         pageSize={PAGE_SIZE}
         onPageChange={handlePageChange}
       />
+
+        </div>
+        <ChatPanel />
+      </div>
 
       {selectedRow && (
         <EvidenceDrawer

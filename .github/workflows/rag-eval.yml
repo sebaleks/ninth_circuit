@@ -1,0 +1,47 @@
+name: RAG evaluation
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Sundays 12:00 UTC
+    - cron: "0 12 * * 0"
+
+permissions:
+  contents: write   # need to commit evaluation/results/<date>.json
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install eval deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests==2.32.5 matplotlib==3.9.4 pandas==2.3.3 numpy==2.4.3 openai==2.28.0 python-dotenv==1.0.1
+
+      - name: Run eval against live RAG API
+        env:
+          RAG_API_URL: ${{ secrets.RAG_API_URL_PUBLIC }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          NVIDIA_BASE_URL: https://integrate.api.nvidia.com/v1
+        run: python evaluation/run_eval.py --against $RAG_API_URL
+
+      - name: Commit results
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add evaluation/results/
+          if git diff --cached --quiet; then
+            echo "No new eval results to commit."
+          else
+            git commit -m "rag-eval: nightly run $(date -u +%Y-%m-%d)"
+            git push
+          fi

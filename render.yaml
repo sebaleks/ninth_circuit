@@ -1,0 +1,45 @@
+# Render Blueprint: rag-api (FastAPI backend for the asylum-case RAG system).
+#
+# To deploy:
+#   1. Connect this GitHub repo on render.com → "New +" → "Blueprint"
+#   2. Render reads this file and creates the service.
+#   3. Add the four secret env vars in the Render dashboard:
+#        NVIDIA_API_KEY        — nvapi-... from build.nvidia.com
+#        NVIDIA_BASE_URL       — https://integrate.api.nvidia.com/v1
+#        SUPABASE_URL          — https://<project>.supabase.co
+#        SUPABASE_SECRET_KEY   — Supabase service-role key
+#   4. (Optional) Add CORS_EXTRA_ORIGINS if you preview-deploy to a custom domain.
+#
+# Free tier specs:
+#   - 512 MB RAM, 0.1 CPU
+#   - Sleeps after 15 min idle (~30 s cold start)
+#   - 750 build minutes/mo, unlimited bandwidth
+#
+# The buildCommand installs git-lfs and pulls the FAISS index + Parquet
+# metadata (tracked via .gitattributes) so the container has them at runtime.
+
+services:
+  - type: web
+    name: rag-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./rag_api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    buildCommand: |
+      apt-get update && apt-get install -y --no-install-recommends git-lfs && git lfs install
+      git lfs pull
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: NVIDIA_API_KEY
+        sync: false        # set in dashboard, never commit
+      - key: NVIDIA_BASE_URL
+        value: https://integrate.api.nvidia.com/v1
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: CORS_EXTRA_ORIGINS
+        sync: false        # optional comma-separated list

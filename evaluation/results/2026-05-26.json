@@ -1,0 +1,241 @@
+{
+  "summary": {
+    "n_questions": 20,
+    "groundedness_pct": 0.42857142857142855,
+    "citation_acc_avg": 0.5523809523809524,
+    "refusal_acc_pct": 0.55,
+    "latency_p50_ms": 8504,
+    "latency_p95_ms": 55137,
+    "latency_mean_ms": 11062,
+    "n_in_corpus_eval": 7,
+    "n_out_of_corpus": 4,
+    "evaluated_at_utc": "2026-05-26T18:39:42.441654+00:00",
+    "rag_url": "http://127.0.0.1:8000"
+  },
+  "questions": [
+    {
+      "id": "fac-01",
+      "category": "factual",
+      "question": "Did the Ninth Circuit grant the petition in case 24-631?",
+      "expect_refuse": false,
+      "answer": "I can only answer about cases in our corpus.",
+      "refused": true,
+      "refusal_ok": false,
+      "groundedness": null,
+      "citation_accuracy": null,
+      "n_citations": 0,
+      "latency_ms": 6752,
+      "wall_ms": 6756
+    },
+    {
+      "id": "fac-02",
+      "category": "factual",
+      "question": "What was the final disposition in case 21-70493?",
+      "expect_refuse": false,
+      "answer": "The final disposition in case 21-70493 was that the petition was granted in part, denied in part, and remanded [2].",
+      "refused": false,
+      "refusal_ok": true,
+      "groundedness": false,
+      "citation_accuracy": 0.0,
+      "n_citations": 1,
+      "latency_ms": 13044,
+      "wall_ms": 13052
+    },
+    {
+      "id": "fac-03",
+      "category": "factual",
+      "question": "In which countries did the petitioners face persecution according to these cases?",
+      "expect_refuse": false,
+      "answer": "The petitioners faced persecution in the following countries: India [1], Somalia [4], Nicaragua [2], China [3], and Armenia [5].",
+      "refused": false,
+      "refusal_ok": true,
+      "groundedness": true,
+      "citation_accuracy": 0.2,
+      "n_citations": 5,
+      "latency_ms": 7566,
+      "wall_ms": 7575
+    },
+    {
+      "id": "fac-04",
+      "category": "factual",
+      "question": "Were any petitions remanded for further proceedings?",
+      "expect_refuse": false,
+      "error": "502 Server Error: Bad Gateway for url: http://127.0.0.1:8000/chat"
+    },
+    {
+      "id": "sim-01",
+      "category": "similarity",
+      "question": "Find cases about gang-based persecution from Central America.",
+      "expect_refuse": false,
+      "answer": "Gang-based persecution from Central America is discussed in [1], where the petitioner, Guzman-Hernandez, argued that she had a well-founded fear of future persecution due to death threats and current gang violence in El Salvador. Additionally, [2] and [4] mention Cruz-Ramirez's case, where he was targeted by a gang for extortion, but the Board determined that the harm was not caused \"on account of\" his particular social group. These cases illustrate the complexities of evaluating gang-based persecution claims from Central America [1, 2, 4].",
+      "refused": false,
+      "refusal_ok": true,
+      "groundedness": false,
+      "citation_accuracy": 0.6666666666666666,
+      "n_citations": 3,
+      "latency_ms": 15796,
+      "wall_ms": 15805
+    },
+    {
+      "id": "sim-02",
+      "category": "similarity",
+      "question": "Find cases involving family-targeted violence.",
+      "expect_refuse": false,
+      "error": "502 Server Error: Bad Gateway for url: http://127.0.0.1:8000/chat"
+    },
+    {
+      "id": "sim-03",
+      "category": "similarity",
+      "question": "Find cases that discuss credibility findings.",
+      "expect_refuse": false,
+      "error": "502 Server Error: Bad Gateway for url: http://127.0.0.1:8000/chat"
+    },
+    {
+      "id": "sim-04",
+      "category": "similarity",
+      "question": "Find cases that mention the one-year filing deadline.",
+      "expect_refuse": false,
+      "error": "502 Server Error: Bad Gateway for url: http://127.0.0.1:8000/chat"
+    },
+    {
+      "id": "rea-01",
+      "category": "reasoning",
+      "question": "What does the court say is required to establish past persecution?",
+      "expect_refuse": false,
+      "error": "502 Server Error: Bad Gateway for url: http://127.0.0.1:8000/chat"
+    },
+    {
+      "id": "rea-02",
+      "category": "reasoning",
+      "question": "How does the court evaluate well-founded fear of future persecution?",
+      "expect_refuse": false,
+      "error": "502 Server Error: Bad Gateway for url: http://127.0.0.1:8000/chat"
+    },
+    {
+      "id": "rea-03",
+      "category": "reasoning",
+      "question": "When does the court consider internal relocation reasonable?",
+      "expect_refuse": false,
+      "error": "502 Server Error: Bad Gateway for url: http://127.0.0.1:8000/chat"
+    },
+    {
+      "id": "rea-04",
+      "category": "reasoning",
+      "question": "What standard applies to the government's ability or willingness to protect?",
+      "expect_refuse": false,
+      "answer": "The standard that applies to the government's ability or willingness to protect is not explicitly stated in the provided passages as a specific standard. However, it can be inferred from passage [2] that the government's ability to protect is considered in the context of the public interest in \"ensuring that 'statutes enacted by [their] representatives' are not imperiled by executive fiat\" and in preventing aliens from being wrongfully removed to countries where they may face harm [2]. Additionally, passage [4] mentions the government's concession that potentially meritorious asylum claims will be \"channeled\" away from the United States and into Mexico, implying a consideration of the government's role in protecting asylum seekers [4].",
+      "refused": false,
+      "refusal_ok": true,
+      "groundedness": false,
+      "citation_accuracy": 0.0,
+      "n_citations": 2,
+      "latency_ms": 14885,
+      "wall_ms": 14893
+    },
+    {
+      "id": "ele-01",
+      "category": "elements",
+      "question": "What kinds of evidence support a credibility finding?",
+      "expect_refuse": false,
+      "answer": "Evidence that supports a credibility finding includes consistency between an applicant's testimony and their written statement, as well as consistency within their own testimony [1]. Additionally, corroborating evidence, such as affidavits from family members or hospital certificates, can also support a credibility finding [1]. The court considers the \"totality of the circumstances, and all relevant factors\" when evaluating credibility [4].",
+      "refused": false,
+      "refusal_ok": true,
+      "groundedness": false,
+      "citation_accuracy": 1.0,
+      "n_citations": 2,
+      "latency_ms": 12469,
+      "wall_ms": 12476
+    },
+    {
+      "id": "ele-02",
+      "category": "elements",
+      "question": "When does the firm-resettlement bar apply?",
+      "expect_refuse": false,
+      "error": "502 Server Error: Bad Gateway for url: http://127.0.0.1:8000/chat"
+    },
+    {
+      "id": "ele-03",
+      "category": "elements",
+      "question": "What constitutes a particular social group in these opinions?",
+      "expect_refuse": false,
+      "answer": "A particular social group is constituted by three elements: (1) a common immutable characteristic, (2) particularity, and (3) social distinction within the society in question [1]. The common immutable characteristic is one that members cannot change or should not be required to change because it is fundamental to their identities or consciences [2]. Particularity requires characteristics that provide a clear benchmark for determining who falls within the group, with definable boundaries that are not amorphous, overbroad, diffuse, or subjective [2]. Social distinction requires evidence that society perceives, considers, or recognizes persons sharing the characteristic as a group [3].",
+      "refused": false,
+      "refusal_ok": true,
+      "groundedness": true,
+      "citation_accuracy": 1.0,
+      "n_citations": 3,
+      "latency_ms": 4173,
+      "wall_ms": 4183
+    },
+    {
+      "id": "ele-04",
+      "category": "elements",
+      "question": "How is nexus established between persecution and a protected ground?",
+      "expect_refuse": false,
+      "answer": "To establish nexus between persecution and a protected ground, a petitioner must show that a protected ground was \"one central reason\" for the persecution suffered for asylum claims [1], or \"a reason\" for the persecution for withholding from removal claims [1]. The petitioner must provide \"direct or circumstantial\" evidence to prove the \"motive\" of the putative persecutors [2]. The court has observed that \"threats standing alone... constitute past persecution in only a small category of cases, and only when the threats are so menacing as to cause significant actual 'suffering or harm'\" [3]. The petitioner bears the burden of proving a nexus [2].",
+      "refused": false,
+      "refusal_ok": true,
+      "groundedness": true,
+      "citation_accuracy": 1.0,
+      "n_citations": 3,
+      "latency_ms": 44938,
+      "wall_ms": 44947
+    },
+    {
+      "id": "ref-01",
+      "category": "out_of_corpus",
+      "question": "What is the weather in Boston today?",
+      "expect_refuse": true,
+      "answer": "I can only answer about cases in our corpus.",
+      "refused": true,
+      "refusal_ok": true,
+      "groundedness": null,
+      "citation_accuracy": null,
+      "n_citations": 0,
+      "latency_ms": 1245,
+      "wall_ms": 1252
+    },
+    {
+      "id": "ref-02",
+      "category": "out_of_corpus",
+      "question": "Who won the 2025 Super Bowl?",
+      "expect_refuse": true,
+      "answer": "I can only answer about cases in our corpus. [N]",
+      "refused": true,
+      "refusal_ok": true,
+      "groundedness": null,
+      "citation_accuracy": null,
+      "n_citations": 0,
+      "latency_ms": 9443,
+      "wall_ms": 9452
+    },
+    {
+      "id": "ref-03",
+      "category": "out_of_corpus",
+      "question": "Write me a Python function that sorts a list.",
+      "expect_refuse": true,
+      "answer": "I can only answer about cases in our corpus.",
+      "refused": true,
+      "refusal_ok": true,
+      "groundedness": null,
+      "citation_accuracy": null,
+      "n_citations": 0,
+      "latency_ms": 1131,
+      "wall_ms": 1137
+    },
+    {
+      "id": "ref-04",
+      "category": "out_of_corpus",
+      "question": "What is the capital of France?",
+      "expect_refuse": true,
+      "answer": "I can only answer about cases in our corpus.",
+      "refused": true,
+      "refusal_ok": true,
+      "groundedness": null,
+      "citation_accuracy": null,
+      "n_citations": 0,
+      "latency_ms": 1308,
+      "wall_ms": 1315
+    }
+  ]
+}
