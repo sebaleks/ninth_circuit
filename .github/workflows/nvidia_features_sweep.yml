@@ -1,0 +1,62 @@
+name: NVIDIA 10-feature probe sweep
+
+# Runs evaluation/nvidia_features.py to completion on a GitHub runner and
+# commits the resulting evaluation/results/nvidia_features.csv back to the repo.
+#
+# The script checkpoints after every (case, model) call and resumes from the
+# committed CSV, so even if a run is interrupted the next run picks up where it
+# left off. A single dispatch (~2h) normally finishes all 30 PDFs x 3 models.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"  # safety net: resume/retry every 6h (no-op once complete)
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nvidia-features-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            pandas==2.3.3 \
+            pymupdf==1.27.2 \
+            openai==2.28.0 \
+            requests==2.32.5 \
+            pydantic==2.12.5
+
+      - name: Run 10-feature sweep
+        env:
+          PYTHONUNBUFFERED: "1"
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: python -u evaluation/nvidia_features.py
+
+      - name: Commit results
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add evaluation/results/nvidia_features.csv
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "NVIDIA 10-feature sweep results [skip ci]"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
