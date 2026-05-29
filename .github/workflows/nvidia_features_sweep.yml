@@ -9,8 +9,10 @@ name: NVIDIA 10-feature probe sweep
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 */6 * * *"  # safety net: resume/retry every 6h (no-op once complete)
+  # Safety-net cron disabled now that the sweep is complete. To re-enable
+  # auto-resume/retry, uncomment the two lines below:
+  # schedule:
+  #   - cron: "0 */6 * * *"  # resume/retry every 6h (no-op once complete)
 
 permissions:
   contents: write
