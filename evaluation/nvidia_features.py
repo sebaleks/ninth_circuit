@@ -142,7 +142,19 @@ FeatureResult = build_model()
 
 
 def case_id_from_url(url: str) -> str:
-    return Path(url).stem
+    """Build a unique case id from a CA9 PDF URL.
+
+    URLs look like .../opinions/2021/03/24/18-17274.pdf — the docket number alone
+    is NOT unique (the same docket can have two opinions filed on different dates),
+    so we suffix the filing date: 18-17274-2021-03-24.
+    """
+    parts = [p for p in url.split("/") if p]
+    stem = Path(url).stem
+    # The three path segments before the filename are YYYY/MM/DD.
+    if len(parts) >= 4 and parts[-4].isdigit() and parts[-3].isdigit() and parts[-2].isdigit():
+        yyyy, mm, dd = parts[-4], parts[-3], parts[-2]
+        return f"{stem}-{yyyy}-{mm}-{dd}"
+    return stem
 
 
 def extract_pdf_text(url: str) -> str:
