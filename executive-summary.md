@@ -29,21 +29,23 @@ evaluation harness covering groundedness/citation-accuracy/latency, and a demo s
 The system is composed of three services plus the existing Supabase database.
 
 ```
-asylum-viewer (Next.js · Vercel · free)
-  ├─ /cases page + Case Search panel (collapsible right sidebar)
+asylum-viewer (Next.js · Vercel · free)              ← UNCHANGED (frontend)
+  ├─ /cases page + Case Search panel
   └─ /api/rag/* server-side proxy routes → $RAG_API_URL
                                   │
                                   ▼
-rag-api (FastAPI · Render free tier · 512 MB RAM)
-  ├─ POST /chat    question → answer + citations
-  ├─ POST /search  query → top-k similar cases (no LLM)
-  └─ GET  /health  liveness + index stats
+rag-api (FastAPI · Render free tier · 512 MB RAM)    ← YOUR PARALLEL VERSION
+  ├─ POST /chat                                      ← Same interface
+  ├─ POST /search                                    ← Same interface
+  └─ GET  /health                                    ← Same interface
                                   │
             ┌─────────────────────┼─────────────────────┐
             ▼                     ▼                       ▼
    data/index.faiss      NVIDIA NIM (free)        Supabase (existing)
-   data/metadata.parquet   embed / rerank / gen     case metadata only
-   (Git LFS)
+   ⇩ EXPERIMENT           ⇩ EXPERIMENT             ← UNCHANGED (metadata only)
+   Chroma local           Smaller gen model
+   pgvector local         Local embedder
+   (compare all 3)        Legal encoder?
 ```
 
 **Frontend.** The search panel is a collapsible right sidebar inside the existing `/cases`
