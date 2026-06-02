@@ -1,5 +1,11 @@
 # Executive Summary — Ninth Circuit Asylum RAG System
 
+## Authorship
+
+This document describes a parallel implementation by Sebastian Steen, built on top of the original architecture by Victor Palacios (original repo). The Overview and Architecture sections describe the inherited system; the marked Experiments are alternative implementations under investigation. Sections marked INHERITED describe Victor's design as-is; sections marked EXPERIMENT describe my proposed changes.
+
+---
+
 ## Overview
 
 This project delivers a Retrieval-Augmented Generation (RAG) search system over U.S. Court
@@ -16,11 +22,7 @@ vector index lives in the Git repository itself via Git LFS. The only pre-existi
 it touches is the Supabase Postgres database that already backs `asylum-viewer`, and it
 touches that only for structured case metadata — never for vectors.
 
-The work was scoped against the Quantic AI Engineering rubric with the explicit goal of
-satisfying every requirement for a score of 5: a working RAG pipeline with accurate
-citations, a documented ingest/indexing process, a clean architecture, a public
-deployment, CI/CD on push and pull request, design documentation, a quantitative
-evaluation harness covering groundedness/citation-accuracy/latency, and a demo script.
+This document describes a parallel implementation built on this architecture. The inherited components, frontend, Supabase data, evaluation harness, and deployment infrastructure, remain unchanged. The retrieval pipeline, vector store, and embedder are the subject of architectural experiments described below, motivated by prior research on a 30-case corpus of Ninth Circuit asylum opinions and constrained by the same $0-ongoing-cost and 512 MB Render free-tier budget as the original.
 
 ---
 
@@ -29,24 +31,43 @@ evaluation harness covering groundedness/citation-accuracy/latency, and a demo s
 The system is composed of three services plus the existing Supabase database.
 
 ```
-asylum-viewer (Next.js · Vercel · free)              ← UNCHANGED (frontend)
+asylum-viewer (Next.js · Vercel · free)              ← INHERITED
   ├─ /cases page + Case Search panel
   └─ /api/rag/* server-side proxy routes → $RAG_API_URL
                                   │
                                   ▼
-rag-api (FastAPI · Render free tier · 512 MB RAM)    ← YOUR PARALLEL VERSION
-  ├─ POST /chat                                      ← Same interface
-  ├─ POST /search                                    ← Same interface
-  └─ GET  /health                                    ← Same interface
+rag-api (FastAPI · Render free tier · 512 MB RAM)    ← MY PARALLEL VERSION
+  ├─ POST /chat
+  ├─ POST /search
+  └─ GET  /health
+                                  │
+                                  ▼
+                      RETRIEVAL PIPELINE              ← EXPERIMENT (hybrid scheme)
+                      ┌─────────────────────┐
+                      │ 1. Dense retrieval  │
+                      │ 2. Rerank (his) /   │
+                      │    or skip (yours)  │
+                      │ 3. BM25 blend       │
+                      │ 4. Dedupe by case   │
+                      └─────────────────────┘
                                   │
             ┌─────────────────────┼─────────────────────┐
             ▼                     ▼                       ▼
-   data/index.faiss      NVIDIA NIM (free)        Supabase (existing)
-   ⇩ EXPERIMENT           ⇩ EXPERIMENT             ← UNCHANGED (metadata only)
-   Chroma local           Smaller gen model
-   pgvector local         Local embedder
-   (compare all 3)        Legal encoder?
+   Vector store           NVIDIA NIM                  Supabase
+   ⇩ EXPERIMENT           ⇩ EXPERIMENT                INHERITED
+   FAISS (inherited)      Embed: his vs local
+   Chroma                 Rerank: his vs none
+   pgvector               Gen: 70B vs smaller
 ```
+
+**Experiments**
+Vector store swap (FAISS → Chroma/pgvector)
+Embedder swap (NIM → local BGE/GTE/legal)
+Hybrid fusion scheme comparison (his rerank+blend → your RRF-no-reranker)
+Hybrid blend tuning (only if his fusion stays)
+Chunking ablation
+Generation model swap
+Segmenter integration
 
 **Frontend.** The search panel is a collapsible right sidebar inside the existing `/cases`
 page (a thin "💬 Chat" tab when closed, ~400px wide when open), so the new capability
@@ -138,24 +159,13 @@ addition, accounts for only about +9.5 MB at this scale. The Git LFS artifacts t
 which is 0.3% of GitHub's 1 GB free LFS allowance. There is comfortable headroom at MVP
 scale, though see the scaling tradeoffs below for the full-corpus picture.
 
----
-
-## How it meets the Quantic rubric (score 5)
-
-| Rubric requirement | Where it is met |
-|---|---|
-| Outstanding RAG, correct responses, matching citations | Dense + NVIDIA rerank + BM25 hybrid in `rag_api/retrieval.py`; citations resolved to chunk IDs carrying snippet, page, and case link |
-| Ingest and indexing works | `pipeline/rag_ingest.py` — PDF download, PyMuPDF extraction, page-aware ~1500-token chunking, builds `data/index.faiss` + `data/metadata.parquet`, MLflow logging |
-| Excellent, well-structured architecture | Clean three-tier separation, all free-tier, no external vector DB (FAISS-in-Git-LFS), server-side proxy hides the backend |
-| Public deployment fully functional | Render (backend) + Vercel (frontend), both public, both free, auto-deploy on push to `main` |
-| CI/CD on push/PR | Three GitHub Actions workflows: `rag-api-test` (pytest + ruff + import smoke test), `rag-api-deploy` (Render deploy hook), `rag-eval` (scheduled evaluation) |
-| Excellent design docs | `design-and-evaluation.md`, `ai-tooling.md`, `deployed.md`, README RAG section, and this summary |
-| Evaluation: groundedness, citation accuracy, latency | `evaluation/run_eval.py` — LLM-as-judge groundedness, per-citation support check, latency p50/p95, 20-question stratified set, matplotlib chart |
-| Excellent demo | Eight-minute screen-share script documented in the project plan (architecture → ingest → live queries → refusal → eval → CI → deploy) |
+**My version's projected footprint.** Moving the embedder in-process (BGE-small or GTE-small at ~150–180 MB resident) adds memory to the Render container. At 30-case MVP scale: ~170 MB baseline + ~150–180 MB embedder + Chroma replacing FAISS (similar footprint) ≈ 320–350 MB total, comfortably within the 512 MB ceiling. The actual deployed footprint will be measured rather than estimated, since Render's reported memory may differ from process-internal measurements. At larger corpus scales the math gets tighter — see the constraints discussion in My v0.2 priorities.
 
 ---
 
 ## Key design tradeoffs
+
+**Original Design Tradeoffs (inherited):**
 
 Every significant decision in this system traded one desirable property for another. The
 most consequential ones:
@@ -209,9 +219,20 @@ spinner instead of watching tokens appear. Streaming is the top item on the post
 is slow. This is an acceptable tradeoff for a prototype and demo, but not for production
 traffic.
 
+**My Design Tradeoffs:**
+
+**Chroma over FAISS-in-Git-LFS.** Trades reproducibility-via-Git for higher recall (no IndexIVFPQ quantization loss) and a cleaner separation of code and data. The original chose FAISS for zero-services and a versioned artifact; my version accepts a separate Chroma persistence layer in exchange for measured 1-3%+ recall improvement.
+
+**Qdrant Cloud over FAISS-in-Git-LFS (alternative production architecture).** Trades the static, reproducible-via-Git index for a hosted service that decouples vector storage from Render's 512 MB RAM ceiling. The original chose FAISS-in-Git-LFS to keep the system to three services with zero recurring cost; my version evaluates whether adding a fourth (Qdrant Cloud free tier) is justified by full-corpus scaling headroom and native sparse-vector support. The cost is an additional external dependency and a network hop on every query — measured around 20-50 ms vs zero for in-process FAISS. At MVP scale this may be acceptable; at full corpus the architectural simplification (sparse + dense in one service, no Render RAM ceiling) may outweigh the operational cost.
+
+**In-process embedder vs NIM-hosted embedder.** The original chose NIM-hosted embedding to keep the Render backend lean and avoid loading any model into the 512 MB container. The cost is network latency on every query and a hard dependency on NIM's queue depth. My version moves embedding in-process using BGE-small (~133 MB resident), which adds RAM pressure but eliminates the network hop from the latency budget. At 30-case scale this fits comfortably; at full corpus it requires verifying total RAM stays under 512 MB once Chroma, BM25, and the app itself are accounted for.
+
+**RRF fusion without reranker over rerank+blend.** Trades architectural simplicity for the reranker failure mode my prior experiments documented on doctrinal queries: a standard web-search-trained cross-encoder (ms-marco-MiniLM-L12-v2) hurt every strong baseline tested, including the hybrid R@5 of 0.958, where reranking dropped performance to 0.812. The mechanism was out-of-domain training — the reranker demoted legal phrasing in favor of lexical web-search-style matches. The reranker did help a weak baseline (long-chunk dense, +0.125 R@5), but even the helped variant did not reach the unranked hybrid baseline. My version inherits this finding for doctrinal queries; behavior on paraphrased or lay-language queries is untested and is named as future work.
+
+
 ---
 
-## Room for improvement
+## Room for improvement (inherited)
 
 The prototype-1 evaluation (30-case corpus) confirmed the pipeline works end-to-end on
 every question, but also surfaced clear, addressable gaps. Current measured numbers sit
@@ -268,5 +289,38 @@ what closes each gap.
    a paid inference tier, or a smaller/faster generation model — depending on the
    latency budget the use case actually requires.
 
-These are the Sprint-2 priorities. None requires re-architecting the system; each is a
-tuning or incremental-feature pass on the foundation that is already in place.
+
+**My priorities**
+This section maps my proposed experiments to the original "Room for improvement" priorities and to additional architectural questions surfaced by my prior work on this corpus. Each priority references the relevant Experiment number from the architecture diagram above.
+
+Experiment 1 — Vector store comparison.  
+Replace FAISS IndexIVFPQ with Chroma, Qdrant Cloud, and pgvector; benchmark all four on the same evaluation set. The original architecture chose FAISS-in-Git-LFS for reproducibility and zero external services; the documented cost was an estimated 1–3% recall hit from IVF_PQ quantization at MVP scale, and a projected 650 MB index size at full corpus that exceeds Render's 512 MB ceiling. Each alternative resolves a different constraint:  
+Chroma: higher recall than IVF_PQ, similar Render RAM footprint, no external service dependency.  
+Qdrant Cloud: decouples vector storage from Render RAM, native sparse-vector support for cleaner hybrid retrieval, generous 1 GB free tier.  
+pgvector (Supabase): keeps vectors in the existing Postgres-centric stack, no new service, but constrained by Supabase 500 MB database cap.  
+Direct measurement on this corpus will quantify the actual recall, latency, and operational tradeoffs of each.
+
+Experiment 2 — Embedder comparison  
+Replace nvidia/llama-nemotron-embed-1b-v2 (2048-dim, NIM-hosted) with in-process alternatives: BGE-small, GTE-small, and optionally a legal-domain embedder (Free Law Project ModernBERT). The original chose NIM-hosted embedding to keep the Render container memory free; my version trades RAM headroom for elimination of network latency and queue depth from the query path. Prior same-tier embedder testing on this corpus suggests GTE-small or E5-small outperform BGE-small at 384-dim; that work needs revalidation against the NIM-hosted baseline at this system's scale.  
+Addresses: item 8 (latency for production) by removing one of the NIM dependencies that contributes to p95 queueing. Storage reduction (5.3× smaller vectors at 384-dim vs 2048-dim) also helps the Render RAM ceiling at full-corpus scale.
+
+Experiment 3 — Hybrid fusion scheme comparison  
+The original architecture uses a three-stage hybrid: dense retrieval → NVIDIA cross-encoder rerank → BM25 blend at fixed 0.6/0.4 weights. My version tests an alternative: dense + BM25 fused via Reciprocal Rank Fusion (RRF), no reranker. Prior work showed (a) RRF hybrid achieved R@5 = 0.958 on a comparable corpus without a reranker, (b) the standard ms-marco cross-encoder reranker hurt strong baselines (out-of-domain web-search training), and (c) fixed-weight blending has a documented destructive failure mode when one method has zero signal — particularly on paraphrased queries (BM25 collapses) or very long chunks (dense truncates).  
+Addresses: item 5 (hybrid blend weight tuning) by testing whether the rerank stage adds value at all, not just whether the blend weights are correctly tuned. If the RRF-without-reranker version is competitive or better, the question shifts from "what weights should the blend use" to "is the reranker step worth keeping."
+
+Experiment 4 — Hybrid blend tuning (conditional)  
+Only relevant if Experiment 3 shows the original fusion scheme (rerank + BM25 blend) is the right architecture for this corpus. In that case, the fixed 0.6/0.4 weight is the next thing to test: regime-aware blending (different weights per query type), or query-classifier routing (dynamic weight selection). The destructive-RRF mechanism applies to weighted blending too: if a query has zero signal in one method, the fixed weight on that method actively drags the ranking down.  
+Addresses: item 5 directly, conditional on the architectural question in Experiment 3.
+
+Experiment 5 — Chunking ablation  
+Sweep chunk size {256, 512, 1500} and overlap {32, 150} against retrieval quality and citation accuracy. The original chose 1500-token page-aware chunks to support clean per-page citations; prior work on this corpus showed 256-token sliding-window chunks improved retrieval recall by +30% over whole-opinion chunks. The open question is whether smaller chunks improve retrieval enough to justify a different citation-resolution strategy, or whether 1500-token page-aware chunks are the right tradeoff at production scale.  
+Addresses: item 4 (scaffolded ablations) directly. The original has the eval harness wired to sweep chunk_size ∈ {500, 1000, 1500} and k ∈ {3, 5, 10} but did not run it in prototype-1 due to rate-limit budget; my version extends the sweep to smaller sizes and actually runs it.
+
+Experiment 6 — Generation model swap  
+Hold the retrieval pipeline constant (best from Experiments 1–5), swap meta/llama-3.3-70b-instruct for smaller NVIDIA NIM models (meta/llama-3.1-8b-instruct, meta/llama-3.2-3b-instruct). Measure latency change and quality change. The hypothesis: improved retrieval quality from earlier experiments reduces the synthesis burden on the generation model, making smaller models viable. The 70B model is the dominant latency contributor at p50 (8.5s) and dominates p95 (55s) via free-tier queueing.  
+Addresses: item 8 (cold starts and latency for production) and is the experiment most directly tied to the original's stated latency priority. Generation latency cannot be addressed by retrieval improvements alone, but better retrieval enables smaller generation models, which can.
+
+Experiment 7 — Segmenter integration  
+Replace page-aware chunking with role-based segmentation (CAPTION, PROCEDURAL_POSTURE, PETITIONER_FACTS, COURT_ANALYSIS, DISPOSITION, SEPARATE_OPINION). Prior work on this corpus produced a verified six-role segmenter (v2 + Fix #1) that improved retrieval R@5 by +14% and MRR by +19% over a fixed-window baseline. Open question: does role-based segmentation help on this evaluation set, given that the original system already uses page-aware chunking which preserves natural document structure differently. Potential extension: token-window subchunking within roles, which composes the semantic-section signal of role boundaries with the chunk-size discipline that makes dense embedders effective.  
+Addresses: an architectural question the original surfaced but did not investigate — whether semantic structure (rhetorical roles) helps retrieval beyond what page-aware chunking already provides.
+
