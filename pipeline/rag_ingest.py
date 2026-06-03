@@ -21,6 +21,7 @@ Reproducibility: random.seed(42).
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import random
 import sys
@@ -58,6 +59,14 @@ CHUNK_TOKENS = 1500
 CHUNK_OVERLAP = 150
 NVIDIA_BASE_URL_DEFAULT = "https://integrate.api.nvidia.com/v1"
 SEED = 42
+
+# Short CLI names → full HuggingFace model IDs for the local-embedder experiment.
+# "nim" is handled separately (existing NVIDIA path), not in this table.
+LOCAL_MODEL_IDS = {
+    "bge-small":   "BAAI/bge-small-en-v1.5",
+    "e5-small-v2": "intfloat/e5-small-v2",
+    "gte-small":   "Alibaba-NLP/gte-small-en-v1.5",
+}
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 INDEX_PATH = DATA_DIR / "index.faiss"
@@ -159,14 +168,24 @@ def compute_nlist(n_vectors: int) -> int:
     return max(4, min(target, max_safe))
 
 
-def build_index(vectors: np.ndarray) -> faiss.Index:
-    """Build IndexIVFPQ (used at every scale per plan)."""
+def build_index(vectors: np.ndarray, dim: int = EMBED_DIM) -> faiss.Index:
+    """Build IndexIVFPQ (used at every scale per plan).
+
+    `dim` defaults to the NIM embedder's 2048; local embedders pass their own
+    (e.g. 384). IVFPQ requires dim % PQ_SUBQUANTIZERS == 0 — fail loudly rather
+    than let FAISS raise an opaque error.
+    """
+    if dim % PQ_SUBQUANTIZERS != 0:
+        raise ValueError(
+            f"Embedding dim {dim} not divisible by PQ_SUBQUANTIZERS={PQ_SUBQUANTIZERS}; "
+            f"choose a compatible subquantizer count for this embedder."
+        )
     n = vectors.shape[0]
     nlist = compute_nlist(n)
     print(f"  nlist={nlist}  (corpus N={n}, target ~30 samples/cell)")
-    quantizer = faiss.IndexFlatIP(EMBED_DIM)
+    quantizer = faiss.IndexFlatIP(dim)
     index = faiss.IndexIVFPQ(
-        quantizer, EMBED_DIM, nlist, PQ_SUBQUANTIZERS, PQ_NBITS, faiss.METRIC_INNER_PRODUCT
+        quantizer, dim, nlist, PQ_SUBQUANTIZERS, PQ_NBITS, faiss.METRIC_INNER_PRODUCT
     )
     index.train(vectors)
     index.add(vectors)
@@ -176,23 +195,51 @@ def build_index(vectors: np.ndarray) -> faiss.Index:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def run(source_csv: Path) -> dict:
-    """Ingest case links from a CSV into FAISS + Parquet. Returns summary stats."""
+def run(source_csv: Path, embedder_name: str = "nim", experiment: str | None = None) -> dict:
+    """Ingest case links from a CSV into FAISS + Parquet. Returns summary stats.
+
+    `embedder_name` is "nim" (existing NVIDIA path, 2048-dim) or one of the short
+    names in LOCAL_MODEL_IDS (local sentence-transformers, 384-dim). `experiment`,
+    if given, redirects output to data/experiments/<experiment>/ so multiple
+    configurations can coexist; omitted, output stays at data/ (NIM baseline).
+    """
     random.seed(SEED)
     np.random.seed(SEED)
 
     if not source_csv.exists():
         raise FileNotFoundError(f"Source CSV not found: {source_csv}")
+    if embedder_name != "nim" and embedder_name not in LOCAL_MODEL_IDS:
+        raise ValueError(
+            f"Unknown --embedder '{embedder_name}'. Choose 'nim' or one of "
+            f"{sorted(LOCAL_MODEL_IDS)}."
+        )
 
     sources = pd.read_csv(source_csv)
     if "link" not in sources.columns:
         raise ValueError(f"{source_csv} must have a 'link' column")
 
+    # Resolve output directory: baseline stays at data/; experiments get a subdir.
+    out_dir = DATA_DIR if experiment is None else DATA_DIR / "experiments" / experiment
+    index_path = out_dir / "index.faiss"
+    meta_path = out_dir / "metadata.parquet"
+    config_path = out_dir / "config.json"
+
+    # Resolve the embedder. NIM keeps the OpenAI-client batch path; local models
+    # use the in-process LocalEmbedder. Both yield (N, dim) L2-normalized float32.
+    if embedder_name == "nim":
+        model_id, embed_dim, local_embedder = EMBED_MODEL, EMBED_DIM, None
+    else:
+        from rag_api.local_embedder import LocalEmbedder
+        model_id = LOCAL_MODEL_IDS[embedder_name]
+        local_embedder = LocalEmbedder(model_id)
+        embed_dim = local_embedder.dim
+
     print(f"Loaded {len(sources)} case links from {source_csv}")
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"Embedder: {embedder_name} ({model_id}, {embed_dim}-dim) → {out_dir}")
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     encoder = tiktoken.get_encoding("cl100k_base")
-    client = make_embed_client()
+    client = make_embed_client() if embedder_name == "nim" else None
 
     # ── 1. Download + chunk ──────────────────────────────────────────────────
     rows: list[dict] = []
@@ -232,40 +279,59 @@ def run(source_csv: Path) -> dict:
     print(f"\n  → {len(rows)} chunks across {len(sources) - len(failures)} cases "
           f"({download_seconds:.1f}s download+extract)")
 
-    # ── 2. Embed in batches ──────────────────────────────────────────────────
-    print(f"\nEmbedding {len(rows)} chunks via {EMBED_MODEL} (batch={EMBED_BATCH})…")
+    # ── 2. Embed ──────────────────────────────────────────────────────────────
+    all_texts = [r["text"] for r in rows]
     t0 = time.perf_counter()
-    all_vecs: list[np.ndarray] = []
-    for i in range(0, len(rows), EMBED_BATCH):
-        batch_texts = [r["text"] for r in rows[i : i + EMBED_BATCH]]
-        vecs = embed_batch(client, batch_texts, input_type="passage")
-        all_vecs.append(vecs)
-        if (i // EMBED_BATCH) % 5 == 0:
-            done = min(i + EMBED_BATCH, len(rows))
-            print(f"  embedded {done}/{len(rows)}")
-    vectors = np.vstack(all_vecs)
+    if embedder_name == "nim":
+        print(f"\nEmbedding {len(rows)} chunks via {model_id} (batch={EMBED_BATCH})…")
+        all_vecs: list[np.ndarray] = []
+        for i in range(0, len(rows), EMBED_BATCH):
+            vecs = embed_batch(client, all_texts[i : i + EMBED_BATCH], input_type="passage")
+            all_vecs.append(vecs)
+            if (i // EMBED_BATCH) % 5 == 0:
+                done = min(i + EMBED_BATCH, len(rows))
+                print(f"  embedded {done}/{len(rows)}")
+        vectors = np.vstack(all_vecs)
+    else:
+        print(f"\nEmbedding {len(rows)} chunks via {model_id} (local, CPU)…")
+        vectors = local_embedder.embed_passages(all_texts)
     vectors = l2_normalize(vectors)
+    if vectors.shape[1] != embed_dim:
+        raise RuntimeError(
+            f"Embedder produced {vectors.shape[1]}-dim vectors, expected {embed_dim}."
+        )
     embed_seconds = time.perf_counter() - t0
     print(f"  → {vectors.shape} in {embed_seconds:.1f}s")
 
     # ── 3. Build FAISS index (IVFPQ from day 1) ──────────────────────────────
     print("\nBuilding FAISS IndexIVFPQ…")
     t0 = time.perf_counter()
-    index = build_index(vectors)
+    index = build_index(vectors, dim=embed_dim)
     build_seconds = time.perf_counter() - t0
     print(f"  → ntotal={index.ntotal} in {build_seconds:.1f}s")
 
     # ── 4. Persist ───────────────────────────────────────────────────────────
-    faiss.write_index(index, str(INDEX_PATH))
+    faiss.write_index(index, str(index_path))
 
     # Assign chunk_id = FAISS row index (0..N-1, matches insertion order)
     meta_df = pd.DataFrame(rows)
     meta_df.insert(0, "chunk_id", np.arange(len(meta_df), dtype=np.int64))
-    meta_df.to_parquet(META_PATH, compression="snappy", index=False)
+    meta_df.to_parquet(meta_path, compression="snappy", index=False)
+
+    # config.json lets the retrieval side verify it's using the matching embedder.
+    config = {
+        "embedder":   embedder_name,
+        "model_id":   model_id,
+        "dim":        int(embed_dim),
+        "chunk_size": CHUNK_TOKENS,
+        "overlap":    CHUNK_OVERLAP,
+    }
+    config_path.write_text(json.dumps(config, indent=2))
 
     print("\nWrote:")
-    print(f"  {INDEX_PATH}  ({INDEX_PATH.stat().st_size / 1024:.1f} KB)")
-    print(f"  {META_PATH}   ({META_PATH.stat().st_size / 1024:.1f} KB)")
+    print(f"  {index_path}  ({index_path.stat().st_size / 1024:.1f} KB)")
+    print(f"  {meta_path}   ({meta_path.stat().st_size / 1024:.1f} KB)")
+    print(f"  {config_path}")
 
     if failures:
         print(f"\n⚠️  {len(failures)} case(s) failed:")
@@ -273,14 +339,17 @@ def run(source_csv: Path) -> dict:
             print(f"   - {link}: {err}")
 
     return {
+        "embedder":         embedder_name,
+        "model_id":         model_id,
+        "dim":              int(embed_dim),
         "n_cases":          int(len(sources) - len(failures)),
         "n_failures":       int(len(failures)),
         "n_chunks":         int(len(rows)),
         "download_seconds": round(download_seconds, 1),
         "embed_seconds":    round(embed_seconds, 1),
         "build_seconds":    round(build_seconds, 1),
-        "index_size_kb":    round(INDEX_PATH.stat().st_size / 1024, 1),
-        "meta_size_kb":     round(META_PATH.stat().st_size / 1024, 1),
+        "index_size_kb":    round(index_path.stat().st_size / 1024, 1),
+        "meta_size_kb":     round(meta_path.stat().st_size / 1024, 1),
         "nlist":            compute_nlist(len(rows)),
     }
 
@@ -292,6 +361,18 @@ def main() -> None:
         type=Path,
         default=Path(__file__).resolve().parent.parent / "reports" / "sample_30_cases.csv",
         help="CSV of case links to ingest (must have a 'link' column)",
+    )
+    parser.add_argument(
+        "--embedder",
+        choices=["nim", *LOCAL_MODEL_IDS],
+        default="nim",
+        help="Embedder: 'nim' (default, NVIDIA 2048-dim) or a local 384-dim model.",
+    )
+    parser.add_argument(
+        "--experiment",
+        default=None,
+        help="Experiment name; output goes to data/experiments/<name>/. "
+             "Omit for the NIM baseline (output stays at data/).",
     )
     args = parser.parse_args()
 
@@ -305,8 +386,8 @@ def main() -> None:
     mlflow.set_experiment("rag_ingest")
 
     with mlflow.start_run():
-        mlflow.log_param("embed_model", EMBED_MODEL)
-        mlflow.log_param("embed_dim", EMBED_DIM)
+        mlflow.log_param("embedder", args.embedder)
+        mlflow.log_param("experiment", args.experiment or "baseline")
         mlflow.log_param("chunk_tokens", CHUNK_TOKENS)
         mlflow.log_param("chunk_overlap", CHUNK_OVERLAP)
         mlflow.log_param("pq_subquantizers", PQ_SUBQUANTIZERS)
@@ -314,7 +395,7 @@ def main() -> None:
         mlflow.log_param("source", str(args.source))
         mlflow.log_param("seed", SEED)
 
-        stats = run(args.source)
+        stats = run(args.source, embedder_name=args.embedder, experiment=args.experiment)
 
         for k, v in stats.items():
             mlflow.log_metric(k, v) if isinstance(v, (int, float)) else mlflow.log_param(k, v)

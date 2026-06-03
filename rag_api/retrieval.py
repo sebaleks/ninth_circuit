@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 from pathlib import Path
 
@@ -14,12 +16,18 @@ from rag_api import nvidia_client
 
 # Resolve from repo root regardless of cwd
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-INDEX_PATH = _REPO_ROOT / "data" / "index.faiss"
-META_PATH = _REPO_ROOT / "data" / "metadata.parquet"
+DEFAULT_INDEX_DIR = _REPO_ROOT / "data"
+INDEX_PATH = DEFAULT_INDEX_DIR / "index.faiss"
+META_PATH = DEFAULT_INDEX_DIR / "metadata.parquet"
 
 # Module-level singletons loaded once at import (FastAPI startup)
 INDEX: faiss.Index | None = None
 META: pd.DataFrame | None = None
+# Query-time embedder. None means "use the NIM path" (nvidia_client.embed_query),
+# which is also the default before load() runs — so tests that monkeypatch
+# nvidia_client.embed_query keep working without any setup. load() may replace
+# this with a LocalEmbedder based on the index's config.json.
+EMBEDDER = None
 _BM25: BM25Okapi | None = None
 _BM25_META_ID: int | None = None  # id(META) at the time BM25 was built; for invalidation
 
@@ -69,21 +77,71 @@ def _ensure_bm25() -> BM25Okapi | None:
     return _BM25
 
 
+def _index_dir() -> Path:
+    """Directory to load the index/metadata/config from (env INDEX_DIR, default data/)."""
+    return Path(os.environ.get("INDEX_DIR", str(DEFAULT_INDEX_DIR)))
+
+
+def _resolve_embedder(config_path: Path, index_dim: int):
+    """Pick the query-time embedder matching the index, failing loudly on dim mismatch.
+
+    Returns the embedder object (LocalEmbedder), or None to mean the NIM path.
+    Backward-compatible: a missing config.json (e.g. the legacy data/ index)
+    defaults to NIM.
+    """
+    if not config_path.exists():
+        embedder_name, embedder, expected_dim = "nim", None, nvidia_client.EMBED_DIM
+    else:
+        cfg = json.loads(config_path.read_text())
+        embedder_name = cfg.get("embedder", "nim")
+        if embedder_name == "nim":
+            embedder, expected_dim = None, nvidia_client.EMBED_DIM
+        else:
+            from rag_api.local_embedder import LocalEmbedder
+            embedder = LocalEmbedder(cfg["model_id"])
+            expected_dim = embedder.dim
+
+    if index_dim != expected_dim:
+        raise RuntimeError(
+            f"Embedder/index dimension mismatch: FAISS index is {index_dim}-dim but "
+            f"embedder '{embedder_name}' produces {expected_dim}-dim query vectors. "
+            f"Set INDEX_DIR to a matching index, or re-ingest with this embedder."
+        )
+    return embedder
+
+
 def load() -> None:
-    """Load FAISS index, metadata, and BM25 corpus. Called at FastAPI startup."""
-    global INDEX, META
-    if not INDEX_PATH.exists():
-        raise FileNotFoundError(f"Missing {INDEX_PATH} — run `python pipeline/rag_ingest.py` first")
-    if not META_PATH.exists():
-        raise FileNotFoundError(f"Missing {META_PATH} — run `python pipeline/rag_ingest.py` first")
-    INDEX = faiss.read_index(str(INDEX_PATH))
-    META = pd.read_parquet(META_PATH)
+    """Load FAISS index, metadata, embedder, and BM25 corpus. Called at FastAPI startup.
+
+    Reads from INDEX_DIR (env, default data/): index.faiss, metadata.parquet, and
+    config.json. The embedder is chosen from config.json so query-time embedding
+    matches how the index was built; reranker and generation stay on NIM.
+    """
+    global INDEX, META, EMBEDDER
+    index_dir = _index_dir()
+    index_path = index_dir / "index.faiss"
+    meta_path = index_dir / "metadata.parquet"
+    config_path = index_dir / "config.json"
+    if not index_path.exists():
+        raise FileNotFoundError(f"Missing {index_path} — run `python pipeline/rag_ingest.py` first")
+    if not meta_path.exists():
+        raise FileNotFoundError(f"Missing {meta_path} — run `python pipeline/rag_ingest.py` first")
+    INDEX = faiss.read_index(str(index_path))
+    META = pd.read_parquet(meta_path)
     if len(META) != INDEX.ntotal:
         raise RuntimeError(
             f"Index/metadata size mismatch: index={INDEX.ntotal} meta={len(META)}"
         )
+    EMBEDDER = _resolve_embedder(config_path, INDEX.d)
     # Pre-warm BM25 so the first query doesn't pay the build cost
     _ensure_bm25()
+
+
+def _embed_query(query: str) -> np.ndarray:
+    """Embed a query with the configured embedder, falling back to the NIM path."""
+    if EMBEDDER is None:
+        return nvidia_client.embed_query(query)
+    return EMBEDDER.embed_query(query)
 
 
 def n_chunks() -> int:
@@ -97,7 +155,7 @@ def search_dense(query: str, k: int = 20) -> list[dict]:
     if INDEX is None or META is None:
         raise RuntimeError("retrieval.load() must be called before search_dense()")
 
-    q_vec = nvidia_client.embed_query(query)  # (1, 2048), already L2-normalized
+    q_vec = _embed_query(query)  # (1, dim), already L2-normalized
     scores, indices = INDEX.search(q_vec, k)
 
     hits: list[dict] = []
