@@ -7,6 +7,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY lib/ lib/
 COPY pipeline/ pipeline/
+COPY rag_api/ rag_api/
+COPY data/ data/
 COPY cloud/main.py .
 COPY cloud/run_fetch.py .
 COPY cloud/run_classify.py .
@@ -18,6 +20,5 @@ COPY cloud/run_backup.py .
 COPY cloud/entrypoint.py .
 
 ENV PYTHONUNBUFFERED=1
-ENV PIPELINE_STEP=all
 
-CMD ["python", "entrypoint.py"]
+CMD ["sh", "-c", "uvicorn rag_api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
