@@ -18,10 +18,12 @@ from __future__ import annotations
 
 import math
 import os
+import sys
+import time
 
 import numpy as np
 import requests
-from openai import OpenAI
+from openai import APIStatusError, OpenAI
 
 
 EMBED_MODEL = "nvidia/llama-nemotron-embed-1b-v2"
@@ -44,6 +46,51 @@ def _client() -> OpenAI:
     return OpenAI(base_url=os.environ.get("NVIDIA_BASE_URL", DEFAULT_BASE), api_key=_api_key())
 
 
+# ── Retry ────────────────────────────────────────────────────────────────────
+# NIM's free tier returns 429 (rate limit) and transient 5xx (502/503/504) when
+# its infrastructure is overloaded. Retry those a few times; fast-fail on
+# anything else (auth, validation, payload). The three sleeps sum to 22s, which
+# the eval's client-side timeout is sized to accommodate.
+
+_RETRYABLE_STATUS = {429, 502, 503, 504}
+_RETRY_SLEEPS = [2, 5, 15]  # backoff before attempts 2, 3, 4 → 4 attempts total
+
+
+class _RetryableNimError(Exception):
+    """Internal signal that a NIM call failed with a retryable HTTP status.
+
+    Call sites raise this (carrying the originating exception) so the retry
+    helper stays library-agnostic. On exhaustion the original exception is
+    re-raised unchanged, so callers see the same type they do today.
+    """
+
+    def __init__(self, status_code: int, original: Exception):
+        super().__init__(f"retryable NIM status {status_code}")
+        self.status_code = status_code
+        self.original = original
+
+
+def _with_retry(call_name: str, fn):
+    """Run `fn` with up to 4 attempts, backing off on `_RetryableNimError`.
+
+    Any other exception propagates immediately (fast-fail). After the final
+    attempt the original exception is re-raised.
+    """
+    for attempt in range(1, len(_RETRY_SLEEPS) + 2):  # 1, 2, 3, 4
+        try:
+            return fn()
+        except _RetryableNimError as e:
+            if attempt > len(_RETRY_SLEEPS):  # final attempt failed
+                raise e.original from None
+            sleep_s = _RETRY_SLEEPS[attempt - 1]
+            print(
+                f"nim retry: {call_name} got {e.status_code}, "
+                f"sleeping {sleep_s}s (attempt {attempt}/4)…",
+                file=sys.stderr,
+            )
+            time.sleep(sleep_s)
+
+
 # ── Embedding ────────────────────────────────────────────────────────────────
 
 def embed_passages(texts: list[str]) -> np.ndarray:
@@ -57,12 +104,20 @@ def embed_query(text: str) -> np.ndarray:
 
 
 def _embed(texts: list[str], input_type: str) -> np.ndarray:
-    resp = _client().embeddings.create(
-        model=EMBED_MODEL,
-        input=texts,
-        encoding_format="float",
-        extra_body={"input_type": input_type, "truncate": "END"},
-    )
+    def _call():
+        try:
+            return _client().embeddings.create(
+                model=EMBED_MODEL,
+                input=texts,
+                encoding_format="float",
+                extra_body={"input_type": input_type, "truncate": "END"},
+            )
+        except APIStatusError as e:  # RateLimitError (429) subclasses this too
+            if e.status_code in _RETRYABLE_STATUS:
+                raise _RetryableNimError(e.status_code, e) from e
+            raise
+
+    resp = _with_retry("embed", _call)
     vecs = np.array([d.embedding for d in resp.data], dtype=np.float32)
     norms = np.linalg.norm(vecs, axis=1, keepdims=True)
     norms = np.where(norms == 0, 1.0, norms)
@@ -85,13 +140,23 @@ def rerank(query: str, passages: list[str]) -> list[float]:
         "query": {"text": query},
         "passages": [{"text": p} for p in passages],
     }
-    resp = requests.post(
-        url,
-        headers={"Authorization": f"Bearer {_api_key()}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=30,
-    )
-    resp.raise_for_status()
+    def _call():
+        resp = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {_api_key()}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=30,
+        )
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status in _RETRYABLE_STATUS:
+                raise _RetryableNimError(status, e) from e
+            raise
+        return resp
+
+    resp = _with_retry("rerank", _call)
     rankings = resp.json().get("rankings", [])
 
     # The API returns rankings sorted by relevance; map back to original order
@@ -120,13 +185,22 @@ def generate(question: str, passages: list[str], max_tokens: int = 500) -> str:
     """Single-shot generation. Returns the model's answer text."""
     numbered = "\n\n".join(f"[{i+1}] {p}" for i, p in enumerate(passages))
     user_msg = f"Passages:\n{numbered}\n\nQuestion: {question}\n\nAnswer (cite with [N]):"
-    resp = _client().chat.completions.create(
-        model=GEN_MODEL,
-        messages=[
-            {"role": "system", "content": GENERATION_SYSTEM},
-            {"role": "user", "content": user_msg},
-        ],
-        temperature=0.1,
-        max_tokens=max_tokens,
-    )
+
+    def _call():
+        try:
+            return _client().chat.completions.create(
+                model=GEN_MODEL,
+                messages=[
+                    {"role": "system", "content": GENERATION_SYSTEM},
+                    {"role": "user", "content": user_msg},
+                ],
+                temperature=0.1,
+                max_tokens=max_tokens,
+            )
+        except APIStatusError as e:  # RateLimitError (429) subclasses this too
+            if e.status_code in _RETRYABLE_STATUS:
+                raise _RetryableNimError(e.status_code, e) from e
+            raise
+
+    resp = _with_retry("generate", _call)
     return resp.choices[0].message.content.strip()
