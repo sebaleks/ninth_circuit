@@ -259,13 +259,26 @@ def load() -> None:
     config_path = index_dir / "config.json"
     if not meta_path.exists():
         raise FileNotFoundError(f"Missing {meta_path} — run `python pipeline/rag_ingest.py` first")
-    # META is the shared corpus: it feeds both the store's metadata join and BM25.
+    # META is the shared corpus — it feeds the metadata join (faiss) AND the local
+    # BM25 path in BOTH backends, so it's loaded regardless of VECTOR_STORE.
     META = pd.read_parquet(meta_path)
-    # FaissStore owns faiss.read_index and the size-mismatch check. INDEX stays a
-    # module global as the raw artifact the default store wraps (and for the
-    # monkeypatch-test fallback in _store()); a QdrantStore would leave it None.
-    STORE = FaissStore.from_index_dir(index_dir, META)
-    INDEX = STORE._index
+
+    # Dense backend: VECTOR_STORE=faiss (default, in-process) or qdrant (remote).
+    backend = os.environ.get("VECTOR_STORE", "faiss").lower()
+    if backend == "faiss":
+        # FaissStore owns faiss.read_index and the size-mismatch check. INDEX stays
+        # a module global as the raw artifact the default store wraps (and for the
+        # monkeypatch-test fallback in _store()).
+        STORE = FaissStore.from_index_dir(index_dir, META)
+        INDEX = STORE._index
+    elif backend == "qdrant":
+        from rag_api.qdrant_store import QdrantStore  # lazy: don't require qdrant unless used
+        collection = os.environ.get("QDRANT_COLLECTION", "asylum_cases")
+        STORE = QdrantStore.from_env(collection)
+        INDEX = None  # no FAISS index in qdrant mode
+    else:
+        raise RuntimeError(f"Unknown VECTOR_STORE={backend!r}; use 'faiss' or 'qdrant'")
+
     EMBEDDER, NIM_QUERY_DIM = _resolve_embedder(config_path, STORE.dim)
     # Pre-warm BM25 so the first query doesn't pay the build cost
     _ensure_bm25()

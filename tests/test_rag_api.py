@@ -219,6 +219,75 @@ def test_search_dense_delegates_to_explicit_store(monkeypatch):
     assert retrieval.n_chunks() == 1  # n_chunks reads STORE.ntotal
 
 
+# ── VectorStore abstraction (QdrantStore) ──────────────────────────────────
+
+def _fake_qdrant_client(dim=8, points_count=2):
+    """Stand-in for qdrant_client.QdrantClient — no library needed (search uses
+    the injected client; only from_env imports qdrant_client)."""
+    from types import SimpleNamespace
+    info = SimpleNamespace(
+        config=SimpleNamespace(params=SimpleNamespace(vectors=SimpleNamespace(size=dim))),
+        points_count=points_count,
+    )
+
+    class _Client:
+        def get_collection(self, name):
+            return info
+
+        def query_points(self, collection_name, query, limit, with_payload):
+            pts = [
+                SimpleNamespace(score=0.9, payload={
+                    "chunk_id": 2, "case_link": "c.pdf", "snippet": "gamma", "page": 3,
+                    "case_pub_status": "Published", "case_disposition": "Granted"}),
+                SimpleNamespace(score=0.5, payload={
+                    "chunk_id": 1, "case_link": "b.pdf", "snippet": "beta", "page": 2,
+                    "case_pub_status": "", "case_disposition": ""}),
+            ]
+            return SimpleNamespace(points=pts[:limit])
+
+    return _Client()
+
+
+def test_qdrant_store_search_shape_and_mapping():
+    """QdrantStore.search maps payload+score into the FaissStore hit-dict shape."""
+    from rag_api.qdrant_store import QdrantStore
+
+    store = QdrantStore(_fake_qdrant_client(dim=8, points_count=2), "test")
+    assert store.name == "qdrant"
+    assert store.dim == 8
+    assert store.ntotal == 2
+
+    hits = store.search(np.zeros((1, 8), dtype=np.float32), k=2)
+    assert len(hits) == 2
+    assert hits[0]["chunk_id"] == 2 and hits[0]["case_link"] == "c.pdf"
+    assert hits[0]["snippet"] == "gamma" and hits[0]["page"] == 3
+    assert hits[0]["score"] == pytest.approx(0.9)
+    assert hits[0]["case_disposition"] == "Granted"
+    assert hits[1]["chunk_id"] == 1 and hits[1]["case_pub_status"] == ""
+
+
+def test_qdrant_and_faiss_hit_keys_identical():
+    """The two stores must emit identical hit-dict key sets (drop-in parity)."""
+    from rag_api.retrieval import FaissStore
+    from rag_api.qdrant_store import QdrantStore
+
+    fake_meta = pd.DataFrame({
+        "chunk_id": [0], "case_link": ["a.pdf"], "text": ["alpha"], "page": [1],
+        "case_pub_status": [""], "case_disposition": [""],
+    })
+
+    class FakeIndex:
+        ntotal = 1
+        d = 8
+        def search(self, q, k):
+            return np.array([[0.9]]), np.array([[0]])
+
+    qv = np.zeros((1, 8), dtype=np.float32)
+    faiss_keys = set(FaissStore(FakeIndex(), fake_meta).search(qv, k=1)[0])
+    qdrant_keys = set(QdrantStore(_fake_qdrant_client(), "test").search(qv, k=1)[0])
+    assert faiss_keys == qdrant_keys
+
+
 # ── Query-token extraction + BM25 hybrid (no mocks) ────────────────────────
 
 def test_query_tokens_strips_stopwords_and_short():
