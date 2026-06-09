@@ -11,7 +11,10 @@ export async function POST(request) {
     )
   }
   const body = await request.text()
-  const upstream = await fetch(`${base}/search`, {
+  // Forward the incoming query string (e.g. ?include_timings=true) to Render so
+  // the per-stage `timings` block survives the proxy. The response is already a
+  // verbatim text passthrough below, so `timings` is preserved once requested.
+  const upstream = await fetch(`${base}/search${new URL(request.url).search}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body,
