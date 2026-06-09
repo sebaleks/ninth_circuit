@@ -1,2 +1,4 @@
 data/index.faiss      filter=lfs diff=lfs merge=lfs -text
 data/metadata.parquet filter=lfs diff=lfs merge=lfs -text
+data/experiments/T2/index.faiss      filter=lfs diff=lfs merge=lfs -text
+data/experiments/T2/metadata.parquet filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,7 @@
+{
+  "embedder": "nim",
+  "model_id": "nvidia/llama-nemotron-embed-1b-v2",
+  "dim": 512,
+  "chunk_size": 1500,
+  "overlap": 150
+}
