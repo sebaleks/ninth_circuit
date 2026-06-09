@@ -48,6 +48,19 @@ _BM25_META_ID: int | None = None  # id(META) at the time BM25 was built; for inv
 # dense+sparse. Tuneable via evaluation — exposed as a constant for ablations.
 HYBRID_ALPHA = 0.6
 
+# Retrieval config knobs — read from env in load(); module defaults preserve the
+# T1 baseline (rerank on, weighted blend) when the env vars are unset, so tests
+# and the legacy path behave identically without setup.
+#   USE_RERANKER:  true (default) → rerank dense candidates with the NIM
+#                  cross-encoder (the sigmoid becomes the "semantic" signal);
+#                  false → skip rerank, dense cosine is the semantic signal.
+#   FUSION_METHOD: "blend" (default) → HYBRID_ALPHA*semantic + (1-ALPHA)*bm25;
+#                  "rrf" → reciprocal-rank fusion of the semantic + BM25 rankings.
+# The two knobs are fully ORTHOGONAL — any of the 4 combinations is valid.
+USE_RERANKER = True
+FUSION_METHOD = "blend"
+RRF_K = 60  # reciprocal-rank-fusion constant (standard default)
+
 # Tokenizer shared by query and corpus so BM25 sees consistent terms.
 _STOPWORDS = {
     "the", "and", "for", "with", "from", "that", "this", "what",
@@ -253,7 +266,7 @@ def load() -> None:
     config.json. The embedder is chosen from config.json so query-time embedding
     matches how the index was built; reranker and generation stay on NIM.
     """
-    global INDEX, META, EMBEDDER, STORE, NIM_QUERY_DIM
+    global INDEX, META, EMBEDDER, STORE, NIM_QUERY_DIM, USE_RERANKER, FUSION_METHOD
     index_dir = _index_dir()
     meta_path = index_dir / "metadata.parquet"
     config_path = index_dir / "config.json"
@@ -280,6 +293,9 @@ def load() -> None:
         raise RuntimeError(f"Unknown VECTOR_STORE={backend!r}; use 'faiss' or 'qdrant'")
 
     EMBEDDER, NIM_QUERY_DIM = _resolve_embedder(config_path, STORE.dim)
+    # Retrieval knobs (env; defaults preserve T1). Read at startup, like VECTOR_STORE.
+    USE_RERANKER = os.environ.get("USE_RERANKER", "true").strip().lower() != "false"
+    FUSION_METHOD = os.environ.get("FUSION_METHOD", "blend").strip().lower()
     # Pre-warm BM25 so the first query doesn't pay the build cost
     _ensure_bm25()
 
@@ -323,6 +339,18 @@ def embedding_dim() -> int | None:
     return _store().dim
 
 
+def embedder_name() -> str:
+    """The embedder actually loaded — local model id, or the NIM model for the NIM path."""
+    return EMBEDDER.model_name if EMBEDDER is not None else nvidia_client.EMBED_MODEL
+
+
+def vector_store_name() -> str | None:
+    """Backend tag of the loaded store ("faiss"/"qdrant"), or None before load()."""
+    if STORE is None and INDEX is None:
+        return None
+    return getattr(_store(), "name", "unknown")
+
+
 def search_dense(query: str, k: int = 20) -> list[dict]:
     """Embed query, then dense top-k via the configured vector store.
 
@@ -362,17 +390,34 @@ def _bm25_scores_for_query(query: str) -> np.ndarray:
     return (raw / top).astype(np.float32)
 
 
+def _fuse_rrf(hits: list[dict], key_a: str, key_b: str, k: int = RRF_K) -> None:
+    """Set each hit's `score` to the reciprocal-rank fusion of two signals (in place).
+
+    RRF(d) = Σ 1/(k + rank_signal(d)), rank 1-indexed (best == 1). Rank-based, so
+    it composes signals on different scales (e.g. dense cosine vs BM25) without
+    needing to normalize them.
+    """
+    rrf: dict[int, float] = {id(h): 0.0 for h in hits}
+    for key in (key_a, key_b):
+        for rank, h in enumerate(sorted(hits, key=lambda x: x[key], reverse=True), start=1):
+            rrf[id(h)] += 1.0 / (k + rank)
+    for h in hits:
+        h["score"] = rrf[id(h)]
+
+
 def search_with_rerank(query: str, fetch_k: int = 20, return_k: int = 5) -> list[dict]:
-    """Dense retrieve top-`fetch_k`, then rerank + BM25 hybrid, then dedupe by case.
+    """Dense retrieve, optionally rerank, fuse with BM25, then dedupe by case.
 
-    Each returned hit has:
-      - `dense_score`: original FAISS cosine (used for refusal threshold)
-      - `bm25_score`: BM25 score for this chunk, normalized to [0, 1]
-      - `rerank_score`: NVIDIA rerank sigmoid
-      - `score`: HYBRID_ALPHA * rerank + (1 - HYBRID_ALPHA) * bm25 (ordering signal)
+    Two orthogonal, env-configured knobs (USE_RERANKER, FUSION_METHOD — read in
+    load(); defaults preserve the T1 baseline). The pipeline is always:
+      1. dense retrieve top-`pool` (the `dense_score`, also the refusal signal)
+      2. BM25 over the corpus (`bm25_score`)
+      3. if USE_RERANKER: cross-encoder rerank the candidates (`rerank_score`);
+         the semantic signal is rerank_score, else dense_score
+      4. fuse semantic + bm25 via FUSION_METHOD ("blend" weighted sum, or "rrf")
 
-    Returns at most `return_k` results, one per unique case_link (the
-    highest-scoring chunk per case is kept).
+    Each returned hit has dense_score, bm25_score, (rerank_score if reranked), and
+    the fused `score`. Returns ≤ `return_k` results, one per unique case_link.
     """
     # Fetch a wider pool so we still have enough unique cases after dedupe
     pool_size = max(fetch_k, return_k * 5)
@@ -380,30 +425,41 @@ def search_with_rerank(query: str, fetch_k: int = 20, return_k: int = 5) -> list
     if not hits:
         return []
 
-    # Preserve the dense cosine separately before overwriting with hybrid score
+    # Preserve the dense cosine separately before overwriting with the fused score
     for h in hits:
         h["dense_score"] = h["score"]
 
-    # NVIDIA rerank — semantic similarity to the query, returned as sigmoid in [0, 1].
-    # Timed at the dispatch point (not in NIM-specific code); pool size recorded
-    # because /search and /chat rerank different candidate counts (different fetch_k).
-    timing.set_context(rerank_pool_size=len(hits))
-    with timing.timer("rerank"):
-        rerank_scores = nvidia_client.rerank(query, [h["snippet"] for h in hits])
-
-    # BM25 — keyword/IDF scoring, normalized per-query to [0, 1]
+    # BM25 — keyword/IDF scoring, normalized per-query to [0, 1]. Always computed.
     bm25_all = _bm25_scores_for_query(query)
-    for h, r_score in zip(hits, rerank_scores):
+    for h in hits:
         # ASSUMPTION (flagged): chunk_id == BM25 corpus row position. bm25_all is
         # aligned to META row order, so indexing it by chunk_id only works while
         # the store returns chunk_id in META order (FaissStore does — see its
         # docstring). TODO(qdrant): a non-FAISS store must preserve this ordering
         # or BM25 needs a separate corpus source. The "Qdrant absorbs BM25" design
         # (sparse vectors server-side) removes this coupling.
-        b_score = float(bm25_all[h["chunk_id"]])
-        h["rerank_score"] = float(r_score)
-        h["bm25_score"] = b_score
-        h["score"] = HYBRID_ALPHA * float(r_score) + (1.0 - HYBRID_ALPHA) * b_score
+        h["bm25_score"] = float(bm25_all[h["chunk_id"]])
+
+    # Reranker (optional). When on, the NIM sigmoid is the semantic signal; when
+    # off, the dense cosine is — no NIM rerank call is made.
+    if USE_RERANKER:
+        # Timed at the dispatch point (not in NIM-specific code); pool size recorded
+        # because /search and /chat rerank different candidate counts (fetch_k).
+        timing.set_context(rerank_pool_size=len(hits))
+        with timing.timer("rerank"):
+            rerank_scores = nvidia_client.rerank(query, [h["snippet"] for h in hits])
+        for h, r_score in zip(hits, rerank_scores):
+            h["rerank_score"] = float(r_score)
+        semantic_key = "rerank_score"
+    else:
+        semantic_key = "dense_score"
+
+    # Fusion — combine the semantic signal with BM25.
+    if FUSION_METHOD == "rrf":
+        _fuse_rrf(hits, semantic_key, "bm25_score", k=RRF_K)
+    else:  # "blend" (default)
+        for h in hits:
+            h["score"] = HYBRID_ALPHA * h[semantic_key] + (1.0 - HYBRID_ALPHA) * h["bm25_score"]
 
     hits.sort(key=lambda h: h["score"], reverse=True)
 

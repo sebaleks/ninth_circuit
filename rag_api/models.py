@@ -48,8 +48,13 @@ class SearchResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     n_chunks: int
-    embedding_dim: int | None = None  # dim of the loaded index (512 vs 2048)
-    embed_model: str
+    embedding_dim: int | None = None  # dim of the loaded index (e.g. 2048 / 512 / 384)
+    # Actual runtime configuration (reflects env-selected backend + knobs).
+    vector_store: str | None = None   # "faiss" | "qdrant"
+    embedder: str | None = None       # actual loaded embedder (local model id or NIM model)
+    use_reranker: bool | None = None
+    fusion_method: str | None = None  # "blend" | "rrf"
+    embed_model: str                  # NIM embed model constant (rerank/gen stay on NIM)
     rerank_model: str
     gen_model: str
     build_sha: str
