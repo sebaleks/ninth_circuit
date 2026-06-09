@@ -264,10 +264,13 @@ def main() -> None:
                         help="output-filename label, used only when the URL host matches no "
                              "known pattern (onrender.com -> api_direct, vercel.app -> "
                              f"vercel_proxy; default: {DEFAULT_LABEL})")
+    parser.add_argument("--test-id", default="T1",
+                        help="test identifier for the output filename, e.g. T1/T2/T3 "
+                             "(default: T1). Output is <test-id>_baseline_<label>_<ts>.json")
     args = parser.parse_args()
 
     label = label_for(args.rag_url, args.label)
-    output_path = args.output or (HERE / f"T1_baseline_{label}_{ts}.json")
+    output_path = args.output or (HERE / f"{args.test_id}_baseline_{label}_{ts}.json")
     queries = load_queries(args.queries)
     warmup_q = next((q for q in queries if q.get("id") == WARMUP_QUERY_ID), queries[0])
 
@@ -302,6 +305,7 @@ def main() -> None:
 
     metadata = {
         "rag_url": args.rag_url,
+        "test_id": args.test_id,
         "label": label,
         "output_path": str(output_path),
         "queries_path": str(args.queries),
