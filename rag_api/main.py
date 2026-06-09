@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from rag_api import generation, guardrails, nvidia_client, retrieval
+from rag_api import generation, guardrails, nvidia_client, retrieval, timing
 from rag_api.models import (
     ChatRequest,
     ChatResponse,
@@ -72,53 +72,86 @@ def health() -> HealthResponse:
     )
 
 
-@app.post("/search", response_model=SearchResponse)
-def search(req: SearchRequest) -> SearchResponse:
+def _finalize(t: timing.Timings, t0: float, endpoint: str) -> dict:
+    """Build the per-stage report, log it as a JSON line (always), and return it.
+
+    Logging is unconditional (every request); whether the report is surfaced in
+    the response body is the caller's choice via ?include_timings.
+    """
+    report = timing.build_report(t, (time.perf_counter() - t0) * 1000.0)
+    timing.log_report(endpoint, report)
+    return report
+
+
+@app.post("/search", response_model=SearchResponse, response_model_exclude_none=True)
+def search(req: SearchRequest, include_timings: bool = False) -> SearchResponse:
+    t = timing.start()
     t0 = time.perf_counter()
     try:
-        hits = retrieval.search_with_rerank(req.query, fetch_k=max(20, req.k * 2), return_k=req.k)
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=502, detail=f"upstream error: {e}") from e
-    latency_ms = int((time.perf_counter() - t0) * 1000)
+        try:
+            hits = retrieval.search_with_rerank(req.query, fetch_k=max(20, req.k * 2), return_k=req.k)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"upstream error: {e}") from e
+        latency_ms = int((time.perf_counter() - t0) * 1000)
 
-    # Apply the same dense-score refusal threshold as /chat so out-of-corpus
-    # queries don't return noise. The dense score is more uniformly
-    # calibrated than the rerank sigmoid.
-    if guardrails.should_refuse([h.get("dense_score", h["score"]) for h in hits]):
-        return SearchResponse(hits=[], latency_ms=latency_ms, refused=True)
+        # Apply the same dense-score refusal threshold as /chat so out-of-corpus
+        # queries don't return noise. The dense score is more uniformly
+        # calibrated than the rerank sigmoid.
+        if guardrails.should_refuse([h.get("dense_score", h["score"]) for h in hits]):
+            report = _finalize(t, t0, "search")
+            return SearchResponse(hits=[], latency_ms=latency_ms, refused=True,
+                                  timings=report if include_timings else None)
 
-    return SearchResponse(
-        hits=[Citation(**h) for h in hits],
-        latency_ms=latency_ms,
-        refused=False,
-    )
-
-
-@app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest) -> ChatResponse:
-    t0 = time.perf_counter()
-    try:
-        hits = retrieval.search_with_rerank(req.question, fetch_k=max(20, req.k * 4), return_k=req.k)
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=502, detail=f"retrieval failed: {e}") from e
-
-    if guardrails.should_refuse([h.get("dense_score", h["score"]) for h in hits]):
-        return ChatResponse(
-            answer=guardrails.REFUSAL_TEXT,
-            citations=[],
-            latency_ms=int((time.perf_counter() - t0) * 1000),
-            refused=True,
+        report = _finalize(t, t0, "search")
+        return SearchResponse(
+            hits=[Citation(**h) for h in hits],
+            latency_ms=latency_ms,
+            refused=False,
+            timings=report if include_timings else None,
         )
+    except HTTPException:
+        _finalize(t, t0, "search")  # log partial timings even on upstream error
+        raise
+    finally:
+        timing.reset()
 
+
+@app.post("/chat", response_model=ChatResponse, response_model_exclude_none=True)
+def chat(req: ChatRequest, include_timings: bool = False) -> ChatResponse:
+    t = timing.start()
+    t0 = time.perf_counter()
     try:
-        answer, used_hits = generation.answer_with_citations(req.question, hits)
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=502, detail=f"generation failed: {e}") from e
+        try:
+            hits = retrieval.search_with_rerank(req.question, fetch_k=max(20, req.k * 4), return_k=req.k)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"retrieval failed: {e}") from e
 
-    refused = guardrails.is_refusal(answer)
-    return ChatResponse(
-        answer=answer,
-        citations=[] if refused else [Citation(**h) for h in used_hits],
-        latency_ms=int((time.perf_counter() - t0) * 1000),
-        refused=refused,
-    )
+        if guardrails.should_refuse([h.get("dense_score", h["score"]) for h in hits]):
+            report = _finalize(t, t0, "chat")
+            return ChatResponse(
+                answer=guardrails.REFUSAL_TEXT,
+                citations=[],
+                latency_ms=int((time.perf_counter() - t0) * 1000),
+                refused=True,
+                timings=report if include_timings else None,
+            )
+
+        try:
+            answer, used_hits = generation.answer_with_citations(req.question, hits)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"generation failed: {e}") from e
+
+        refused = guardrails.is_refusal(answer)
+        report = _finalize(t, t0, "chat")
+        return ChatResponse(
+            answer=answer,
+            citations=[] if refused else [Citation(**h) for h in used_hits],
+            latency_ms=int((time.perf_counter() - t0) * 1000),
+            refused=refused,
+            timings=report if include_timings else None,
+        )
+    except HTTPException:
+        _finalize(t, t0, "chat")  # log partial timings even on a downstream error
+        raise
+    finally:
+        timing.reset()

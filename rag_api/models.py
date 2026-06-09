@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -30,12 +32,17 @@ class ChatResponse(BaseModel):
     citations: list[Citation]
     latency_ms: int
     refused: bool = False
+    # Per-stage latency breakdown; only populated when the request opts in via
+    # ?include_timings=true, and omitted from the JSON otherwise (routes set
+    # response_model_exclude_none=True). Additive — does not affect latency_ms.
+    timings: dict[str, Any] | None = None
 
 
 class SearchResponse(BaseModel):
     hits: list[Citation]
     latency_ms: int
     refused: bool = False
+    timings: dict[str, Any] | None = None
 
 
 class HealthResponse(BaseModel):
