@@ -147,6 +147,78 @@ def test_search_dense_skips_negative_indices(monkeypatch):
     assert hits[0]["case_link"] == "only.pdf"
 
 
+# ── VectorStore abstraction (FaissStore) ───────────────────────────────────
+
+def test_faiss_store_join_and_padding():
+    """FaissStore owns the metadata join and the -1 padding filter that used to
+    live inline in search_dense — same hit shape, same ordering."""
+    from rag_api.retrieval import FaissStore
+
+    fake_meta = pd.DataFrame({
+        "chunk_id":         [0, 1, 2],
+        "case_link":        ["a.pdf", "b.pdf", "c.pdf"],
+        "text":             ["alpha", "beta", "gamma"],
+        "page":             [1, 2, 3],
+        "case_pub_status":  ["Published", "Unpublished", "Published"],
+        "case_disposition": ["Denied", "Remanded", "Granted"],
+    })
+
+    class FakeIndex:
+        ntotal = 3
+        d = 8
+        def search(self, q, k):
+            # row 2 best; -1 padding in the 4th slot must be skipped
+            return np.array([[0.9, 0.5, 0.1, -1.0]]), np.array([[2, 1, 0, -1]])
+
+    store = FaissStore(FakeIndex(), fake_meta)
+    assert store.ntotal == 3
+    assert store.dim == 8
+
+    hits = store.search(np.zeros((1, 8), dtype=np.float32), k=4)
+    assert len(hits) == 3  # padding row dropped
+    assert hits[0]["case_link"] == "c.pdf"
+    assert hits[0]["snippet"] == "gamma"
+    assert hits[0]["page"] == 3
+    assert hits[0]["score"] == pytest.approx(0.9)
+    assert hits[0]["case_disposition"] == "Granted"
+    assert hits[2]["case_link"] == "a.pdf"
+    # chunk_id is the metadata row's chunk_id (the BM25-ordering contract)
+    assert [h["chunk_id"] for h in hits] == [2, 1, 0]
+
+
+def test_faiss_store_size_mismatch_raises():
+    """The index/metadata size-mismatch check moved from load() into FaissStore."""
+    from rag_api.retrieval import FaissStore
+
+    class FakeIndex:
+        ntotal = 5
+        d = 8
+    meta = pd.DataFrame({"chunk_id": [0, 1], "case_link": ["a", "b"], "text": ["x", "y"],
+                         "page": [1, 1], "case_pub_status": ["", ""], "case_disposition": ["", ""]})
+    with pytest.raises(RuntimeError, match="size mismatch"):
+        FaissStore(FakeIndex(), meta)
+
+
+def test_search_dense_delegates_to_explicit_store(monkeypatch):
+    """When retrieval.STORE is set, search_dense routes through it (the stable
+    seam), not through INDEX/META directly."""
+    from rag_api import retrieval
+
+    sentinel = [{"chunk_id": 7, "case_link": "z.pdf", "snippet": "s", "page": 1,
+                 "score": 0.42, "case_pub_status": "", "case_disposition": ""}]
+
+    class FakeStore:
+        ntotal = 1
+        dim = 8
+        def search(self, q, k):
+            return sentinel
+
+    monkeypatch.setattr(retrieval, "STORE", FakeStore())
+    monkeypatch.setattr(retrieval, "_embed_query", lambda query: np.zeros((1, 8), dtype=np.float32))
+    assert retrieval.search_dense("q", k=5) is sentinel
+    assert retrieval.n_chunks() == 1  # n_chunks reads STORE.ntotal
+
+
 # ── Query-token extraction + BM25 hybrid (no mocks) ────────────────────────
 
 def test_query_tokens_strips_stopwords_and_short():

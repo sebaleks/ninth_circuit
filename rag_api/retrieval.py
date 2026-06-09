@@ -6,6 +6,7 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import Protocol
 
 import faiss  # type: ignore
 import numpy as np
@@ -28,6 +29,13 @@ META: pd.DataFrame | None = None
 # nvidia_client.embed_query keep working without any setup. load() may replace
 # this with a LocalEmbedder based on the index's config.json.
 EMBEDDER = None
+# Dense vector store. None means "wrap the module-level INDEX/META in a
+# FaissStore on demand" — the same None-as-default-path convention used by
+# EMBEDDER above, so tests that monkeypatch retrieval.INDEX / retrieval.META
+# keep working without constructing a store. load() replaces this with a
+# concrete store selected from config.json (FaissStore today; a QdrantStore
+# is the planned successor — see VectorStore below).
+STORE: "VectorStore | None" = None
 _BM25: BM25Okapi | None = None
 _BM25_META_ID: int | None = None  # id(META) at the time BM25 was built; for invalidation
 
@@ -43,6 +51,118 @@ _STOPWORDS = {
     "were", "are", "have", "has", "had", "but", "not", "all",
     "any", "some", "into", "about", "case", "cases",
 }
+
+
+# ── Vector store abstraction ─────────────────────────────────────────────────
+# A backend-agnostic seam for dense retrieval. Duck-typed (typing.Protocol, no
+# shared base class) in the same spirit as EMBEDDER, so a future QdrantStore can
+# be dropped in by config without touching search_dense() or its instrumentation.
+
+class VectorStore(Protocol):
+    """Dense retrieval backend. Implementations own their own metadata join.
+
+    search() returns hit dicts already joined to metadata, in the shape the rest
+    of the pipeline expects (chunk_id, case_link, snippet, page, score, …). The
+    `score` is the raw dense similarity (cosine); the caller renames it to
+    `dense_score` before overwriting `score` with the hybrid value.
+    """
+
+    def search(self, query_vec: np.ndarray, k: int) -> list[dict]: ...
+
+    @property
+    def ntotal(self) -> int: ...
+
+    @property
+    def dim(self) -> int: ...
+
+
+class FaissStore:
+    """VectorStore backed by a FAISS index plus a pandas metadata frame.
+
+    Consolidates every FAISS-specific detail that used to live in retrieval.py:
+    faiss.read_index (via `from_index_dir`), the index/metadata size-mismatch
+    check, the `-1` padding filter, dimension/ntotal access, and the positional
+    `META.iloc[idx]` metadata join.
+
+    BM25 COUPLING (flagged, not fixed): the returned `chunk_id` must equal the
+    row's position in META, because `_bm25_scores_for_query` indexes its
+    per-corpus score array by `chunk_id` (see the assumption comment at the BM25
+    blend site in search_with_rerank). A vectors-store that does not preserve
+    META row order — e.g. a future QdrantStore — would break that contract.
+    TODO(qdrant): QdrantStore must either return chunk_id in META row order, or
+    BM25 must be given a separate corpus source keyed independently of the store.
+    (The eventual "Qdrant absorbs BM25" design moves sparse scoring server-side
+    and removes this coupling entirely.)
+    """
+
+    def __init__(self, index: faiss.Index, meta: pd.DataFrame) -> None:
+        if len(meta) != index.ntotal:
+            raise RuntimeError(
+                f"Index/metadata size mismatch: index={index.ntotal} meta={len(meta)}"
+            )
+        self._index = index
+        self._meta = meta
+
+    @classmethod
+    def from_index_dir(cls, index_dir: Path, meta: pd.DataFrame) -> "FaissStore":
+        """Read index.faiss from `index_dir` and pair it with an already-loaded `meta`.
+
+        `meta` is passed in (not read here) because load() also feeds it to BM25;
+        reading the parquet once keeps a single source of truth for the corpus.
+        """
+        index_path = index_dir / "index.faiss"
+        if not index_path.exists():
+            raise FileNotFoundError(
+                f"Missing {index_path} — run `python pipeline/rag_ingest.py` first"
+            )
+        return cls(faiss.read_index(str(index_path)), meta)
+
+    @property
+    def ntotal(self) -> int:
+        return int(self._index.ntotal)
+
+    @property
+    def dim(self) -> int:
+        return int(self._index.d)
+
+    def search(self, query_vec: np.ndarray, k: int) -> list[dict]:
+        """FAISS top-k, joined to metadata by positional index.
+
+        Filters FAISS's -1 padding (returned when fewer than k vectors exist).
+        The returned `chunk_id` is the metadata row's chunk_id, which for this
+        store equals the META row position — see the class-level BM25 note.
+        """
+        scores, indices = self._index.search(query_vec, k)
+        hits: list[dict] = []
+        for score, idx in zip(scores[0].tolist(), indices[0].tolist()):
+            if idx < 0:  # FAISS pads with -1 when fewer than k results
+                continue
+            row = self._meta.iloc[idx]
+            hits.append({
+                "chunk_id":         int(row["chunk_id"]),
+                "case_link":        str(row["case_link"]),
+                "snippet":          str(row["text"]),
+                "page":             int(row["page"]),
+                "score":            float(score),
+                "case_pub_status":  str(row.get("case_pub_status", "")),
+                "case_disposition": str(row.get("case_disposition", "")),
+            })
+        return hits
+
+
+def _store() -> VectorStore:
+    """Return the configured store, or a FaissStore view over the module globals.
+
+    Mirrors the EMBEDDER None-as-default convention: when STORE is None (the
+    pre-load() default), wrap the current INDEX/META so tests that monkeypatch
+    those globals work without building a store. In production load() sets STORE
+    explicitly, so this fallback is only exercised by tests.
+    """
+    if STORE is not None:
+        return STORE
+    if INDEX is None or META is None:
+        raise RuntimeError("retrieval.load() must be called before search")
+    return FaissStore(INDEX, META)
 
 
 def _query_tokens(query: str) -> list[str]:
@@ -117,22 +237,20 @@ def load() -> None:
     config.json. The embedder is chosen from config.json so query-time embedding
     matches how the index was built; reranker and generation stay on NIM.
     """
-    global INDEX, META, EMBEDDER
+    global INDEX, META, EMBEDDER, STORE
     index_dir = _index_dir()
-    index_path = index_dir / "index.faiss"
     meta_path = index_dir / "metadata.parquet"
     config_path = index_dir / "config.json"
-    if not index_path.exists():
-        raise FileNotFoundError(f"Missing {index_path} — run `python pipeline/rag_ingest.py` first")
     if not meta_path.exists():
         raise FileNotFoundError(f"Missing {meta_path} — run `python pipeline/rag_ingest.py` first")
-    INDEX = faiss.read_index(str(index_path))
+    # META is the shared corpus: it feeds both the store's metadata join and BM25.
     META = pd.read_parquet(meta_path)
-    if len(META) != INDEX.ntotal:
-        raise RuntimeError(
-            f"Index/metadata size mismatch: index={INDEX.ntotal} meta={len(META)}"
-        )
-    EMBEDDER = _resolve_embedder(config_path, INDEX.d)
+    # FaissStore owns faiss.read_index and the size-mismatch check. INDEX stays a
+    # module global as the raw artifact the default store wraps (and for the
+    # monkeypatch-test fallback in _store()); a QdrantStore would leave it None.
+    STORE = FaissStore.from_index_dir(index_dir, META)
+    INDEX = STORE._index
+    EMBEDDER = _resolve_embedder(config_path, STORE.dim)
     # Pre-warm BM25 so the first query doesn't pay the build cost
     _ensure_bm25()
 
@@ -145,34 +263,20 @@ def _embed_query(query: str) -> np.ndarray:
 
 
 def n_chunks() -> int:
-    if INDEX is None:
+    if STORE is None and INDEX is None:
         return 0
-    return int(INDEX.ntotal)
+    return _store().ntotal
 
 
 def search_dense(query: str, k: int = 20) -> list[dict]:
-    """Embed query, FAISS top-k, return list of hit dicts with raw cosine score."""
-    if INDEX is None or META is None:
-        raise RuntimeError("retrieval.load() must be called before search_dense()")
+    """Embed query, then dense top-k via the configured vector store.
 
+    Embedding stays outside the store (a sibling seam, independently timeable);
+    the store owns the search + metadata join. Returned hits carry the raw dense
+    similarity in `score`.
+    """
     q_vec = _embed_query(query)  # (1, dim), already L2-normalized
-    scores, indices = INDEX.search(q_vec, k)
-
-    hits: list[dict] = []
-    for score, idx in zip(scores[0].tolist(), indices[0].tolist()):
-        if idx < 0:  # FAISS pads with -1 when fewer than k results
-            continue
-        row = META.iloc[idx]
-        hits.append({
-            "chunk_id":         int(row["chunk_id"]),
-            "case_link":        str(row["case_link"]),
-            "snippet":          str(row["text"]),
-            "page":             int(row["page"]),
-            "score":            float(score),
-            "case_pub_status":  str(row.get("case_pub_status", "")),
-            "case_disposition": str(row.get("case_disposition", "")),
-        })
-    return hits
+    return _store().search(q_vec, k)
 
 
 def _bm25_scores_for_query(query: str) -> np.ndarray:
@@ -222,6 +326,12 @@ def search_with_rerank(query: str, fetch_k: int = 20, return_k: int = 5) -> list
     # BM25 — keyword/IDF scoring, normalized per-query to [0, 1]
     bm25_all = _bm25_scores_for_query(query)
     for h, r_score in zip(hits, rerank_scores):
+        # ASSUMPTION (flagged): chunk_id == BM25 corpus row position. bm25_all is
+        # aligned to META row order, so indexing it by chunk_id only works while
+        # the store returns chunk_id in META order (FaissStore does — see its
+        # docstring). TODO(qdrant): a non-FAISS store must preserve this ordering
+        # or BM25 needs a separate corpus source. The "Qdrant absorbs BM25" design
+        # (sparse vectors server-side) removes this coupling.
         b_score = float(bm25_all[h["chunk_id"]])
         h["rerank_score"] = float(r_score)
         h["bm25_score"] = b_score
