@@ -74,6 +74,12 @@ def reembed_vectors(index_dir: Path, meta: pd.DataFrame) -> tuple[np.ndarray, in
                 print(f"  embedded {min(i + _EMBED_BATCH, len(texts))}/{len(texts)}")
         return np.vstack(parts).astype(np.float32), dim
 
+    if embedder_name.endswith("-onnx"):
+        from rag_api.onnx_embedder import OnnxEmbedder  # torch-free
+        emb = OnnxEmbedder()
+        print(f"Re-embedding {len(texts)} chunks via ONNX {cfg.get('model_id')} (dim={emb.dim})…")
+        return emb.embed_passages(texts).astype(np.float32), emb.dim
+
     from rag_api.local_embedder import LocalEmbedder
     emb = LocalEmbedder(cfg["model_id"])
     print(f"Re-embedding {len(texts)} chunks via local {cfg['model_id']} (dim={emb.dim})…")

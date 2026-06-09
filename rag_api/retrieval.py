@@ -244,6 +244,11 @@ def _resolve_embedder(config_path: Path, index_dim: int):
             embedder = None
             expected_dim = int(cfg.get("dim", nvidia_client.EMBED_DIM))
             nim_dim = expected_dim
+        elif embedder_name.endswith("-onnx"):
+            from rag_api.onnx_embedder import OnnxEmbedder  # torch-free, bundled model
+            embedder = OnnxEmbedder(model_name=cfg.get("model_id", embedder_name))
+            expected_dim = embedder.dim
+            nim_dim = None
         else:
             from rag_api.local_embedder import LocalEmbedder
             embedder = LocalEmbedder(cfg["model_id"])

@@ -68,6 +68,13 @@ LOCAL_MODEL_IDS = {
     "gte-small":   "Alibaba-NLP/gte-small-en-v1.5",
 }
 
+# Torch-free ONNX embedders (rag_api.onnx_embedder.OnnxEmbedder). Short name →
+# HF model id. Used for the 512MB-Render path; vectors are parity-identical to
+# the sentence-transformers model (verified).
+ONNX_MODEL_IDS = {
+    "e5-small-v2-onnx": "intfloat/e5-small-v2",
+}
+
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 INDEX_PATH = DATA_DIR / "index.faiss"
 META_PATH = DATA_DIR / "metadata.parquet"
@@ -219,10 +226,11 @@ def run(source_csv: Path, embedder_name: str = "nim", experiment: str | None = N
 
     if not source_csv.exists():
         raise FileNotFoundError(f"Source CSV not found: {source_csv}")
-    if embedder_name != "nim" and embedder_name not in LOCAL_MODEL_IDS:
+    if embedder_name != "nim" and embedder_name not in LOCAL_MODEL_IDS \
+            and embedder_name not in ONNX_MODEL_IDS:
         raise ValueError(
             f"Unknown --embedder '{embedder_name}'. Choose 'nim' or one of "
-            f"{sorted(LOCAL_MODEL_IDS)}."
+            f"{sorted(LOCAL_MODEL_IDS) + sorted(ONNX_MODEL_IDS)}."
         )
 
     sources = pd.read_csv(source_csv)
@@ -239,6 +247,11 @@ def run(source_csv: Path, embedder_name: str = "nim", experiment: str | None = N
     # use the in-process LocalEmbedder. Both yield (N, dim) L2-normalized float32.
     if embedder_name == "nim":
         model_id, embed_dim, local_embedder = EMBED_MODEL, dim, None
+    elif embedder_name in ONNX_MODEL_IDS:
+        from rag_api.onnx_embedder import OnnxEmbedder  # torch-free
+        model_id = ONNX_MODEL_IDS[embedder_name]
+        local_embedder = OnnxEmbedder()
+        embed_dim = local_embedder.dim
     else:
         from rag_api.local_embedder import LocalEmbedder
         model_id = LOCAL_MODEL_IDS[embedder_name]
@@ -384,7 +397,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--embedder",
-        choices=["nim", *LOCAL_MODEL_IDS],
+        choices=["nim", *LOCAL_MODEL_IDS, *ONNX_MODEL_IDS],
         default="nim",
         help="Embedder: 'nim' (default, NVIDIA 2048-dim) or a local 384-dim model.",
     )
