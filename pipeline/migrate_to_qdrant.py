@@ -30,11 +30,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
 import faiss  # type: ignore
 import numpy as np
 import pandas as pd
+
+# Make the repo root importable so `from rag_api ...` works when this is run as a
+# script (python pipeline/migrate_to_qdrant.py), mirroring pipeline/rag_ingest.py.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 try:
     from dotenv import load_dotenv
