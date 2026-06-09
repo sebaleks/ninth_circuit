@@ -1,0 +1,12 @@
+[
+  {"id": "lat-01", "query": "What was the final disposition in case 21-70493?"},
+  {"id": "lat-02", "query": "In which countries did the petitioners face persecution according to these cases?"},
+  {"id": "lat-03", "query": "Were any petitions remanded for further proceedings?"},
+  {"id": "lat-04", "query": "Find cases about gang-based persecution from Central America."},
+  {"id": "lat-05", "query": "Find cases involving family-targeted violence."},
+  {"id": "lat-06", "query": "Find cases that discuss credibility findings."},
+  {"id": "lat-07", "query": "What does the court say is required to establish past persecution?"},
+  {"id": "lat-08", "query": "How does the court evaluate well-founded fear of future persecution?"},
+  {"id": "lat-09", "query": "What kinds of evidence support a credibility finding?"},
+  {"id": "lat-10", "query": "What constitutes a particular social group in these opinions?"}
+]
