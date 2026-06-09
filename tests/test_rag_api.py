@@ -288,6 +288,30 @@ def test_qdrant_and_faiss_hit_keys_identical():
     assert faiss_keys == qdrant_keys
 
 
+# ── OnnxEmbedder (torch-free e5, bundled ONNX) ─────────────────────────────
+
+def test_onnx_embedder_shape_and_norm():
+    """OnnxEmbedder returns L2-normalized 384-dim float32 vectors for query +
+    passages. Skips if the LFS model isn't materialized (CI without git-lfs).
+    (ONNX-vs-sentence-transformers parity is verified manually — cosine 1.0000 —
+    not in CI, since sentence-transformers isn't a rag_api dependency.)"""
+    from rag_api.onnx_embedder import OnnxEmbedder, DEFAULT_MODEL_DIR
+    model = DEFAULT_MODEL_DIR / "model.onnx"
+    if not model.exists() or model.stat().st_size < 1_000_000:  # absent or LFS pointer
+        pytest.skip("ONNX model not materialized (git-lfs not pulled)")
+
+    emb = OnnxEmbedder()
+    assert emb.dim == 384
+
+    q = emb.embed_query("what must a petitioner show to establish past persecution")
+    assert q.shape == (1, 384) and q.dtype == np.float32
+    np.testing.assert_allclose(np.linalg.norm(q, axis=1), 1.0, atol=1e-4)
+
+    p = emb.embed_passages(["alpha gang honduras", "beta credibility finding"])
+    assert p.shape == (2, 384)
+    np.testing.assert_allclose(np.linalg.norm(p, axis=1), 1.0, atol=1e-4)
+
+
 # ── Query-token extraction + BM25 hybrid (no mocks) ────────────────────────
 
 def test_query_tokens_strips_stopwords_and_short():
