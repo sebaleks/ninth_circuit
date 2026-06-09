@@ -65,6 +65,7 @@ def health() -> HealthResponse:
     return HealthResponse(
         status="ok",
         n_chunks=retrieval.n_chunks(),
+        embedding_dim=retrieval.embedding_dim(),
         embed_model=nvidia_client.EMBED_MODEL,
         rerank_model=nvidia_client.RERANK_MODEL,
         gen_model=nvidia_client.GEN_MODEL,

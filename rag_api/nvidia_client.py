@@ -104,25 +104,34 @@ def _with_retry(call_name: str, fn):
 
 # ── Embedding ────────────────────────────────────────────────────────────────
 
-def embed_passages(texts: list[str]) -> np.ndarray:
-    """Embed documents/passages. Returns (N, 2048) float32, L2-normalized."""
-    return _embed(texts, input_type="passage")
+def embed_passages(texts: list[str], dim: int | None = None) -> np.ndarray:
+    """Embed documents/passages. Returns (N, dim) float32, L2-normalized.
+
+    `dim` requests Matryoshka truncation via NIM's native `dimensions` param;
+    None (default) returns the model's native EMBED_DIM (2048) output.
+    """
+    return _embed(texts, input_type="passage", dim=dim)
 
 
-def embed_query(text: str) -> np.ndarray:
-    """Embed a single query. Returns (1, 2048) float32, L2-normalized."""
-    return _embed([text], input_type="query")
+def embed_query(text: str, dim: int | None = None) -> np.ndarray:
+    """Embed a single query. Returns (1, dim) float32, L2-normalized."""
+    return _embed([text], input_type="query", dim=dim)
 
 
-def _embed(texts: list[str], input_type: str) -> np.ndarray:
+def _embed(texts: list[str], input_type: str, dim: int | None = None) -> np.ndarray:
     def _call():
+        kwargs = dict(
+            model=EMBED_MODEL,
+            input=texts,
+            encoding_format="float",
+            extra_body={"input_type": input_type, "truncate": "END"},
+        )
+        # Only send the native OpenAI `dimensions` param for non-native dims
+        # (Matryoshka truncation). Omitting it preserves the exact 2048-dim path.
+        if dim is not None and dim != EMBED_DIM:
+            kwargs["dimensions"] = dim
         try:
-            return _client().embeddings.create(
-                model=EMBED_MODEL,
-                input=texts,
-                encoding_format="float",
-                extra_body={"input_type": input_type, "truncate": "END"},
-            )
+            return _client().embeddings.create(**kwargs)
         except APIStatusError as e:  # RateLimitError (429) subclasses this too
             if e.status_code in _RETRYABLE_STATUS:
                 raise _RetryableNimError(e.status_code, e) from e

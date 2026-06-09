@@ -48,6 +48,7 @@ class SearchResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     n_chunks: int
+    embedding_dim: int | None = None  # dim of the loaded index (512 vs 2048)
     embed_model: str
     rerank_model: str
     gen_model: str

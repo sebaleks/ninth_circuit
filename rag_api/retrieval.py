@@ -29,6 +29,10 @@ META: pd.DataFrame | None = None
 # nvidia_client.embed_query keep working without any setup. load() may replace
 # this with a LocalEmbedder based on the index's config.json.
 EMBEDDER = None
+# Dim to request from NIM at query time (Matryoshka). None means "native 2048 /
+# send no dimensions param"; also None for local embedders (their dim is
+# intrinsic). load() sets this from config.json so query vectors match the index.
+NIM_QUERY_DIM: int | None = None
 # Dense vector store. None means "wrap the module-level INDEX/META in a
 # FaissStore on demand" — the same None-as-default-path convention used by
 # EMBEDDER above, so tests that monkeypatch retrieval.INDEX / retrieval.META
@@ -207,23 +211,31 @@ def _index_dir() -> Path:
 
 
 def _resolve_embedder(config_path: Path, index_dim: int):
-    """Pick the query-time embedder matching the index, failing loudly on dim mismatch.
+    """Pick the query-time embedder + NIM query dim matching the index, failing
+    loudly on dim mismatch.
 
-    Returns the embedder object (LocalEmbedder), or None to mean the NIM path.
-    Backward-compatible: a missing config.json (e.g. the legacy data/ index)
-    defaults to NIM.
+    Returns (embedder, nim_query_dim): `embedder` is a LocalEmbedder or None (the
+    NIM path); `nim_query_dim` is the dim to request from NIM at query time, or
+    None for local embedders (intrinsic dim) and the native 2048 NIM path. The
+    expected dim is read from config.json's `dim`, NOT a hardcoded constant, so a
+    Matryoshka-truncated index (e.g. 512-dim) loads correctly. Backward-compatible:
+    a missing config.json (legacy data/ index) defaults to NIM at the native dim.
     """
     if not config_path.exists():
-        embedder_name, embedder, expected_dim = "nim", None, nvidia_client.EMBED_DIM
+        embedder_name, embedder = "nim", None
+        expected_dim, nim_dim = nvidia_client.EMBED_DIM, None
     else:
         cfg = json.loads(config_path.read_text())
         embedder_name = cfg.get("embedder", "nim")
         if embedder_name == "nim":
-            embedder, expected_dim = None, nvidia_client.EMBED_DIM
+            embedder = None
+            expected_dim = int(cfg.get("dim", nvidia_client.EMBED_DIM))
+            nim_dim = expected_dim
         else:
             from rag_api.local_embedder import LocalEmbedder
             embedder = LocalEmbedder(cfg["model_id"])
             expected_dim = embedder.dim
+            nim_dim = None
 
     if index_dim != expected_dim:
         raise RuntimeError(
@@ -231,7 +243,7 @@ def _resolve_embedder(config_path: Path, index_dim: int):
             f"embedder '{embedder_name}' produces {expected_dim}-dim query vectors. "
             f"Set INDEX_DIR to a matching index, or re-ingest with this embedder."
         )
-    return embedder
+    return embedder, nim_dim
 
 
 def load() -> None:
@@ -241,7 +253,7 @@ def load() -> None:
     config.json. The embedder is chosen from config.json so query-time embedding
     matches how the index was built; reranker and generation stay on NIM.
     """
-    global INDEX, META, EMBEDDER, STORE
+    global INDEX, META, EMBEDDER, STORE, NIM_QUERY_DIM
     index_dir = _index_dir()
     meta_path = index_dir / "metadata.parquet"
     config_path = index_dir / "config.json"
@@ -254,7 +266,7 @@ def load() -> None:
     # monkeypatch-test fallback in _store()); a QdrantStore would leave it None.
     STORE = FaissStore.from_index_dir(index_dir, META)
     INDEX = STORE._index
-    EMBEDDER = _resolve_embedder(config_path, STORE.dim)
+    EMBEDDER, NIM_QUERY_DIM = _resolve_embedder(config_path, STORE.dim)
     # Pre-warm BM25 so the first query doesn't pay the build cost
     _ensure_bm25()
 
@@ -268,7 +280,10 @@ def _embed_query(query: str) -> np.ndarray:
     retry backoff, which build_report subtracts back out via embed_retry_sleep_ms).
     """
     if EMBEDDER is None:
-        vec = nvidia_client.embed_query(query)
+        # Pass dim only when configured (non-native), so the default/legacy path
+        # and tests that monkeypatch a 1-arg embed_query stay unchanged.
+        vec = (nvidia_client.embed_query(query, dim=NIM_QUERY_DIM)
+               if NIM_QUERY_DIM is not None else nvidia_client.embed_query(query))
         timing.set_context(embedder_name=nvidia_client.EMBED_MODEL)
     else:
         vec = EMBEDDER.embed_query(query)
@@ -282,6 +297,17 @@ def n_chunks() -> int:
     if STORE is None and INDEX is None:
         return 0
     return _store().ntotal
+
+
+def embedding_dim() -> int | None:
+    """Dimension of the loaded index — the embedding dim currently deployed.
+
+    Reflects the actual index (512 for a Matryoshka-truncated build, 2048 for the
+    native default), so /health can confirm which experiment is live. None before
+    load()."""
+    if STORE is None and INDEX is None:
+        return None
+    return _store().dim
 
 
 def search_dense(query: str, k: int = 20) -> list[dict]:

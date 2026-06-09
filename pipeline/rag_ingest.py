@@ -134,18 +134,26 @@ def make_embed_client() -> OpenAI:
     return OpenAI(base_url=base_url, api_key=api_key)
 
 
-def embed_batch(client: OpenAI, texts: list[str], input_type: str = "passage") -> np.ndarray:
-    """Embed a list of texts via NVIDIA NIM. Returns (N, EMBED_DIM) float32."""
-    resp = client.embeddings.create(
+def embed_batch(client: OpenAI, texts: list[str], input_type: str = "passage",
+                dim: int = EMBED_DIM) -> np.ndarray:
+    """Embed a list of texts via NVIDIA NIM. Returns (N, dim) float32.
+
+    `dim` requests Matryoshka truncation via NIM's native `dimensions` param;
+    EMBED_DIM (2048, the model's native size) sends no param (unchanged path).
+    """
+    kwargs = dict(
         model=EMBED_MODEL,
         input=texts,
         encoding_format="float",
         extra_body={"input_type": input_type, "truncate": "END"},
     )
+    if dim != EMBED_DIM:
+        kwargs["dimensions"] = dim
+    resp = client.embeddings.create(**kwargs)
     vecs = np.array([d.embedding for d in resp.data], dtype=np.float32)
-    if vecs.shape[1] != EMBED_DIM:
+    if vecs.shape[1] != dim:
         raise RuntimeError(
-            f"Expected {EMBED_DIM}-dim embeddings from {EMBED_MODEL}, got {vecs.shape[1]}."
+            f"Expected {dim}-dim embeddings from {EMBED_MODEL}, got {vecs.shape[1]}."
         )
     return vecs
 
@@ -195,12 +203,15 @@ def build_index(vectors: np.ndarray, dim: int = EMBED_DIM) -> faiss.Index:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def run(source_csv: Path, embedder_name: str = "nim", experiment: str | None = None) -> dict:
+def run(source_csv: Path, embedder_name: str = "nim", experiment: str | None = None,
+        dim: int = EMBED_DIM) -> dict:
     """Ingest case links from a CSV into FAISS + Parquet. Returns summary stats.
 
     `embedder_name` is "nim" (existing NVIDIA path, 2048-dim) or one of the short
-    names in LOCAL_MODEL_IDS (local sentence-transformers, 384-dim). `experiment`,
-    if given, redirects output to data/experiments/<experiment>/ so multiple
+    names in LOCAL_MODEL_IDS (local sentence-transformers, 384-dim). `dim` requests
+    Matryoshka truncation for the NIM embedder (default 2048, the native size);
+    it is ignored for local embedders, whose dim is intrinsic. `experiment`, if
+    given, redirects output to data/experiments/<experiment>/ so multiple
     configurations can coexist; omitted, output stays at data/ (NIM baseline).
     """
     random.seed(SEED)
@@ -227,12 +238,21 @@ def run(source_csv: Path, embedder_name: str = "nim", experiment: str | None = N
     # Resolve the embedder. NIM keeps the OpenAI-client batch path; local models
     # use the in-process LocalEmbedder. Both yield (N, dim) L2-normalized float32.
     if embedder_name == "nim":
-        model_id, embed_dim, local_embedder = EMBED_MODEL, EMBED_DIM, None
+        model_id, embed_dim, local_embedder = EMBED_MODEL, dim, None
     else:
         from rag_api.local_embedder import LocalEmbedder
         model_id = LOCAL_MODEL_IDS[embedder_name]
         local_embedder = LocalEmbedder(model_id)
         embed_dim = local_embedder.dim
+
+    # Fail fast (before downloading/embedding) on a PQ-incompatible dim. FAISS
+    # IVFPQ requires dim % PQ_SUBQUANTIZERS == 0; build_index re-checks as a guard.
+    if embed_dim % PQ_SUBQUANTIZERS != 0:
+        raise ValueError(
+            f"Embedding dim {embed_dim} is not divisible by PQ_SUBQUANTIZERS="
+            f"{PQ_SUBQUANTIZERS}; choose a multiple of {PQ_SUBQUANTIZERS} "
+            f"(e.g. 512, 768, 1024, 2048)."
+        )
 
     print(f"Loaded {len(sources)} case links from {source_csv}")
     print(f"Embedder: {embedder_name} ({model_id}, {embed_dim}-dim) → {out_dir}")
@@ -286,7 +306,7 @@ def run(source_csv: Path, embedder_name: str = "nim", experiment: str | None = N
         print(f"\nEmbedding {len(rows)} chunks via {model_id} (batch={EMBED_BATCH})…")
         all_vecs: list[np.ndarray] = []
         for i in range(0, len(rows), EMBED_BATCH):
-            vecs = embed_batch(client, all_texts[i : i + EMBED_BATCH], input_type="passage")
+            vecs = embed_batch(client, all_texts[i : i + EMBED_BATCH], input_type="passage", dim=embed_dim)
             all_vecs.append(vecs)
             if (i // EMBED_BATCH) % 5 == 0:
                 done = min(i + EMBED_BATCH, len(rows))
@@ -374,6 +394,14 @@ def main() -> None:
         help="Experiment name; output goes to data/experiments/<name>/. "
              "Omit for the NIM baseline (output stays at data/).",
     )
+    parser.add_argument(
+        "--dim",
+        type=int,
+        default=EMBED_DIM,
+        help=f"Embedding dim for the NIM embedder (Matryoshka truncation), default "
+             f"{EMBED_DIM} (native). Must be a multiple of PQ_SUBQUANTIZERS="
+             f"{PQ_SUBQUANTIZERS}. Ignored for local embedders (intrinsic dim).",
+    )
     args = parser.parse_args()
 
     # MLflow run (matches pattern in experiments/run_extraction_experiment.py).
@@ -387,6 +415,7 @@ def main() -> None:
 
     with mlflow.start_run():
         mlflow.log_param("embedder", args.embedder)
+        mlflow.log_param("dim", args.dim)
         mlflow.log_param("experiment", args.experiment or "baseline")
         mlflow.log_param("chunk_tokens", CHUNK_TOKENS)
         mlflow.log_param("chunk_overlap", CHUNK_OVERLAP)
@@ -395,7 +424,7 @@ def main() -> None:
         mlflow.log_param("source", str(args.source))
         mlflow.log_param("seed", SEED)
 
-        stats = run(args.source, embedder_name=args.embedder, experiment=args.experiment)
+        stats = run(args.source, embedder_name=args.embedder, experiment=args.experiment, dim=args.dim)
 
         for k, v in stats.items():
             mlflow.log_metric(k, v) if isinstance(v, (int, float)) else mlflow.log_param(k, v)
