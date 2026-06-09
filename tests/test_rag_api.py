@@ -619,6 +619,107 @@ def test_retry_sleep_excluded_from_network_stage(monkeypatch):
     assert report["embed_ms"] == 0.0
 
 
+# ── Fusion + reranker orthogonality (USE_RERANKER × FUSION_METHOD) ──────────
+
+def test_fuse_rrf_rewards_consensus():
+    """RRF ranks a doc that's #1 in both signals top; rank-based, scale-free."""
+    from rag_api.retrieval import _fuse_rrf, RRF_K
+    h_top = {"sem": 0.9, "bm": 0.9}
+    h_mid = {"sem": 0.5, "bm": 0.5}
+    h_low = {"sem": 0.1, "bm": 0.1}
+    hits = [h_low, h_mid, h_top]
+    _fuse_rrf(hits, "sem", "bm", k=RRF_K)
+    hits.sort(key=lambda h: h["score"], reverse=True)
+    assert hits[0] is h_top and hits[2] is h_low
+    assert hits[0]["score"] == pytest.approx(2 / (RRF_K + 1))  # rank 1 in both signals
+
+
+def _setup_fusion(monkeypatch, *, use_reranker, fusion_method, rerank_scores=None):
+    """Wire a 3-doc corpus + config. If rerank_scores is None, rerank RAISES if called."""
+    from rag_api import retrieval, nvidia_client
+    fake_meta = pd.DataFrame({
+        "chunk_id": [0, 1, 2],
+        "case_link": ["a.pdf", "b.pdf", "c.pdf"],
+        "text": ["alpha gang honduras", "beta credibility finding", "gamma asylum claim"],
+        "page": [1, 1, 1], "case_pub_status": [""] * 3, "case_disposition": [""] * 3,
+    })
+
+    class FakeIndex:
+        ntotal = 3
+        d = 8
+        def search(self, q, k):
+            return np.array([[0.9, 0.6, 0.3]]), np.array([[0, 1, 2]])
+
+    monkeypatch.setattr(retrieval, "STORE", None)  # use FaissStore fallback over INDEX/META
+    monkeypatch.setattr(retrieval, "INDEX", FakeIndex())
+    monkeypatch.setattr(retrieval, "META", fake_meta)
+    monkeypatch.setattr(retrieval, "_BM25", None)
+    monkeypatch.setattr(retrieval, "_BM25_META_ID", None)
+    monkeypatch.setattr(retrieval, "USE_RERANKER", use_reranker)
+    monkeypatch.setattr(retrieval, "FUSION_METHOD", fusion_method)
+    monkeypatch.setattr(nvidia_client, "embed_query", lambda text: np.zeros((1, 8), dtype=np.float32))
+    if rerank_scores is not None:
+        monkeypatch.setattr(nvidia_client, "rerank", lambda q, p: rerank_scores)
+    else:
+        def _no_rerank(q, p):
+            raise AssertionError("nvidia_client.rerank must NOT be called when USE_RERANKER=False")
+        monkeypatch.setattr(nvidia_client, "rerank", _no_rerank)
+
+
+def test_reranker_off_skips_nim_and_uses_dense(monkeypatch):
+    """USE_RERANKER=false → no NIM rerank call; dense cosine is the semantic signal."""
+    from rag_api import retrieval
+    _setup_fusion(monkeypatch, use_reranker=False, fusion_method="blend")  # rerank would raise
+    hits = retrieval.search_with_rerank("xyzzy", fetch_k=3, return_k=3)  # no overlap → bm25=0
+    assert hits
+    for h in hits:
+        assert "rerank_score" not in h           # rerank skipped entirely
+        assert "dense_score" in h and "bm25_score" in h
+    # bm25 all zero → blend == ALPHA*dense → dense order preserved
+    assert [h["case_link"] for h in hits] == ["a.pdf", "b.pdf", "c.pdf"]
+
+
+def test_toptimized_config_rrf_no_rerank(monkeypatch):
+    """T-optimized: USE_RERANKER=false + FUSION_METHOD=rrf — RRF over dense+bm25, no NIM."""
+    from rag_api import retrieval
+    from rag_api.retrieval import RRF_K
+    _setup_fusion(monkeypatch, use_reranker=False, fusion_method="rrf")
+    hits = retrieval.search_with_rerank("honduras", fetch_k=3, return_k=3)
+    assert hits
+    for h in hits:
+        assert "rerank_score" not in h
+        assert 0 < h["score"] <= 2 / (RRF_K + 1)  # RRF of two signals
+
+
+def test_reranker_on_rrf_uses_rerank(monkeypatch):
+    """USE_RERANKER=true + FUSION_METHOD=rrf — rerank IS called; RRF over rerank+bm25."""
+    from rag_api import retrieval
+    from rag_api.retrieval import RRF_K
+    _setup_fusion(monkeypatch, use_reranker=True, fusion_method="rrf", rerank_scores=[0.2, 0.9, 0.5])
+    hits = retrieval.search_with_rerank("honduras", fetch_k=3, return_k=3)
+    assert hits
+    for h in hits:
+        assert "rerank_score" in h                # rerank ran
+        assert 0 < h["score"] <= 2 / (RRF_K + 1)
+
+
+def test_health_exposes_runtime_config(monkeypatch):
+    """/health reports actual runtime config (vector_store/embedder/reranker/fusion)."""
+    from rag_api import retrieval
+    monkeypatch.setattr(retrieval, "load", lambda: None)
+    monkeypatch.setattr(retrieval, "n_chunks", lambda: 42)
+    from fastapi.testclient import TestClient
+    from rag_api.main import app
+    with TestClient(app) as client:
+        body = client.get("/health").json()
+    for key in ("vector_store", "embedder", "use_reranker", "fusion_method", "embedding_dim"):
+        assert key in body
+    # defaults (no load) preserve T1: rerank on, blend; embedder falls back to NIM model
+    assert body["use_reranker"] is True
+    assert body["fusion_method"] == "blend"
+    assert body["embedder"].startswith("nvidia/")
+
+
 # ── Health endpoint — uses FastAPI TestClient + lifespan ────────────────────
 
 def test_health_endpoint_shape(monkeypatch):

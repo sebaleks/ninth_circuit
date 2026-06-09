@@ -23,6 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY rag_api/requirements.txt /app/rag_api/requirements.txt
 RUN pip install -r /app/rag_api/requirements.txt
 
+# Bake the local embedder (e5-small-v2) into the image so Render cold starts
+# (free tier sleeps after 15 min) don't re-download it on every wake. ~130MB.
+# Only exercised when VECTOR_STORE/config selects the local embedder; harmless
+# otherwise. HF_HOME is set so the runtime reads from this baked cache.
+ENV HF_HOME=/app/.hf_cache
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('intfloat/e5-small-v2', device='cpu')"
+
 # Copy code + index data (Render's buildCommand will have run `git lfs pull`)
 COPY rag_api/ /app/rag_api/
 COPY data/   /app/data/

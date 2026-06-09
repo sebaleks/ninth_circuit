@@ -1,0 +1,7 @@
+{
+  "embedder": "e5-small-v2",
+  "model_id": "intfloat/e5-small-v2",
+  "dim": 384,
+  "chunk_size": 1500,
+  "overlap": 150
+}
