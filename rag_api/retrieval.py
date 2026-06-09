@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from rank_bm25 import BM25Okapi
 
-from rag_api import nvidia_client
+from rag_api import nvidia_client, timing
 
 # Resolve from repo root regardless of cwd
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -67,6 +67,8 @@ class VectorStore(Protocol):
     `dense_score` before overwriting `score` with the hybrid value.
     """
 
+    name: str  # short backend tag for telemetry, e.g. "faiss", "qdrant"
+
     def search(self, query_vec: np.ndarray, k: int) -> list[dict]: ...
 
     @property
@@ -94,6 +96,8 @@ class FaissStore:
     (The eventual "Qdrant absorbs BM25" design moves sparse scoring server-side
     and removes this coupling entirely.)
     """
+
+    name = "faiss"
 
     def __init__(self, index: faiss.Index, meta: pd.DataFrame) -> None:
         if len(meta) != index.ntotal:
@@ -255,11 +259,23 @@ def load() -> None:
     _ensure_bm25()
 
 
+@timing.timed("embed")
 def _embed_query(query: str) -> np.ndarray:
-    """Embed a query with the configured embedder, falling back to the NIM path."""
+    """Embed a query with the configured embedder, falling back to the NIM path.
+
+    Single instrumentation point covering both backends: the @timed("embed")
+    decorator measures gross embed time (for the NIM path this includes any
+    retry backoff, which build_report subtracts back out via embed_retry_sleep_ms).
+    """
     if EMBEDDER is None:
-        return nvidia_client.embed_query(query)
-    return EMBEDDER.embed_query(query)
+        vec = nvidia_client.embed_query(query)
+        timing.set_context(embedder_name=nvidia_client.EMBED_MODEL)
+    else:
+        vec = EMBEDDER.embed_query(query)
+        timing.set_context(embedder_name=EMBEDDER.model_name)
+    # Actual query-embedding dimension used (prep for Matryoshka truncation).
+    timing.set_context(embedding_dim=int(vec.shape[1]))
+    return vec
 
 
 def n_chunks() -> int:
@@ -276,9 +292,18 @@ def search_dense(query: str, k: int = 20) -> list[dict]:
     similarity in `score`.
     """
     q_vec = _embed_query(query)  # (1, dim), already L2-normalized
-    return _store().search(q_vec, k)
+    store = _store()
+    # Defensive getattr: instrumentation must never break a request if a store
+    # omits the optional telemetry tag.
+    timing.set_context(vector_store=getattr(store, "name", "unknown"))
+    # dense_search_ms is CPU-bound today (in-process FAISS). When a remote
+    # QdrantStore ships this same seam becomes a NETWORK call — the timer stays
+    # put; only the network-vs-CPU classification of this number flips.
+    with timing.timer("dense_search"):
+        return store.search(q_vec, k)
 
 
+@timing.timed("bm25")
 def _bm25_scores_for_query(query: str) -> np.ndarray:
     """Per-document BM25 scores for the whole corpus, normalized to [0, 1].
 
@@ -320,8 +345,12 @@ def search_with_rerank(query: str, fetch_k: int = 20, return_k: int = 5) -> list
     for h in hits:
         h["dense_score"] = h["score"]
 
-    # NVIDIA rerank — semantic similarity to the query, returned as sigmoid in [0, 1]
-    rerank_scores = nvidia_client.rerank(query, [h["snippet"] for h in hits])
+    # NVIDIA rerank — semantic similarity to the query, returned as sigmoid in [0, 1].
+    # Timed at the dispatch point (not in NIM-specific code); pool size recorded
+    # because /search and /chat rerank different candidate counts (different fetch_k).
+    timing.set_context(rerank_pool_size=len(hits))
+    with timing.timer("rerank"):
+        rerank_scores = nvidia_client.rerank(query, [h["snippet"] for h in hits])
 
     # BM25 — keyword/IDF scoring, normalized per-query to [0, 1]
     bm25_all = _bm25_scores_for_query(query)

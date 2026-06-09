@@ -25,6 +25,8 @@ import numpy as np
 import requests
 from openai import APIStatusError, OpenAI
 
+from rag_api import timing
+
 
 EMBED_MODEL = "nvidia/llama-nemotron-embed-1b-v2"
 EMBED_DIM = 2048
@@ -75,12 +77,20 @@ def _with_retry(call_name: str, fn):
 
     Any other exception propagates immediately (fast-fail). After the final
     attempt the original exception is re-raised.
+
+    Retry backoff sleeps are recorded into the request timing accumulator
+    (record_sleep) separately from the HTTP call itself, so the gross stage
+    timer measured at the dispatch point can have the sleep subtracted back
+    out — a 429-triggered 22s backoff must not be counted as network latency.
     """
     for attempt in range(1, len(_RETRY_SLEEPS) + 2):  # 1, 2, 3, 4
         try:
-            return fn()
+            result = fn()
+            timing.record_attempts(call_name, attempt)
+            return result
         except _RetryableNimError as e:
             if attempt > len(_RETRY_SLEEPS):  # final attempt failed
+                timing.record_attempts(call_name, attempt - 1)
                 raise e.original from None
             sleep_s = _RETRY_SLEEPS[attempt - 1]
             print(
@@ -89,6 +99,7 @@ def _with_retry(call_name: str, fn):
                 file=sys.stderr,
             )
             time.sleep(sleep_s)
+            timing.record_sleep(call_name, sleep_s * 1000.0)
 
 
 # ── Embedding ────────────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from rag_api import nvidia_client
+from rag_api import nvidia_client, timing
 
 
 _CITE_RE = re.compile(r"\[(\d+)\]")
@@ -30,7 +30,10 @@ def answer_with_citations(question: str, hits: list[dict]) -> tuple[str, list[di
     order). If the model cites nothing, returns all hits as fallback evidence.
     """
     passages = [h["snippet"] for h in hits]
-    answer = nvidia_client.generate(question, passages)
+    # Timed at the dispatch point; gross time has any retry backoff subtracted
+    # back out in build_report via generate_retry_sleep_ms.
+    with timing.timer("generate"):
+        answer = nvidia_client.generate(question, passages)
 
     cited_idxs = parse_citations(answer, len(passages))
     used = [hits[i] for i in cited_idxs] if cited_idxs else hits
