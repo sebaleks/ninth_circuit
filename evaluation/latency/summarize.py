@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Summarize latency result JSONs into a single comparison table.
+"""Summarize latency result JSONs into one markdown comparison table.
 
-Scans evaluation/latency/ for result files (baseline_*.json / test_*.json),
-pulls each run's configuration + headline stage timings, and renders one
-markdown table to stdout (and optionally to RESULTS.md). A Δ column shows each
-run's server_total p50 relative to the chosen baseline (T1).
+Scans evaluation/latency/ for result files (the T-series and any test_*.json),
+pulls each run's configuration + headline metrics, and renders a table sorted by
+test id then path. A Δ column reports each run's e2e p50 relative to the
+T1 api_direct baseline.
 
 Reads the JSON shape written by run_baseline.py:
-    {"metadata": {...}, "aggregates": {stage: {p50,p95,mean,n}}, "queries": [...]}
-Per-run configuration (embedder_name, embedding_dim, vector_store) lives in each
-query's `context`; reranker_name / fusion_method are not emitted by the current
-harness and therefore render as "—" until a future run records them in metadata.
+    {"metadata": {...}, "aggregates": {stage: {p50,p95,mean,n}}, "queries":[...]}
+Per-run config (embedder_name, embedding_dim, vector_store, rerank_pool_size)
+comes from the first successful query's `context`. Missing fields render as "—".
 
-Missing fields degrade to "—" rather than crashing, so older/partial runs still
-list. Files that aren't result JSONs (e.g. baseline_queries.json) are skipped.
+The measurement path is derived from the filename: "vercel_proxy", "api_direct",
+else "other".
 
 Usage:
     python evaluation/latency/summarize.py
-    python evaluation/latency/summarize.py --md-file
-    python evaluation/latency/summarize.py --baseline baseline_run2
+    python evaluation/latency/summarize.py --include-stages
+    python evaluation/latency/summarize.py --md-file            # -> RESULTS.md
+    python evaluation/latency/summarize.py --md-file out.md
 """
 
 from __future__ import annotations
@@ -30,174 +30,167 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+REPO_ROOT = HERE.parent.parent
 RESULTS_MD = HERE / "RESULTS.md"
 
-# Result-file globs. Edit if the naming convention changes.
-PATTERNS = ["baseline_*.json", "test_*.json"]
+# Generalized to cover every enumerated pattern (T1_baseline_api_direct*,
+# T1_baseline_vercel_proxy*, T2_baseline_*, T3_*, T4_*) and any test_*.json.
+PATTERNS = ["T*_*.json", "test_*.json"]
 
-# Optional explicit test ordering by test_id; ids not listed fall to the end,
-# alphabetically. Leave empty for purely alphabetical ordering.
-TEST_ORDER: list[str] = []
-
-# Trailing run timestamp (…_20260609T182605Z) stripped to form a clean test_id.
-_TS_SUFFIX = re.compile(r"_\d{8}T\d{6}Z$")
-
-# Config fields surfaced as columns (label, json key).
-CONFIG_COLUMNS = [
-    ("Embedder", "embedder_name"),
-    ("Dim", "embedding_dim"),
-    ("Store", "vector_store"),
-    ("Reranker", "reranker_name"),
-    ("Fusion", "fusion_method"),
+# Extra stage columns shown only with --include-stages: (header, stage key).
+STAGE_COLUMNS = [
+    ("embed p50", "embed_ms"),
+    ("dense p50", "dense_search_ms"),
+    ("rerank p50", "rerank_ms"),
+    ("bm25 p50", "bm25_ms"),
+    ("net p50", "network_overhead_ms"),
 ]
 
 
-# ── Loading ──────────────────────────────────────────────────────────────────
+# ── Extraction ───────────────────────────────────────────────────────────────
 
-def discover_files(directory: Path) -> list[Path]:
-    seen: dict[Path, None] = {}
-    for pattern in PATTERNS:
-        for p in sorted(directory.glob(pattern)):
-            seen.setdefault(p, None)
-    return list(seen)
+def test_id_of(name: str) -> str:
+    m = re.match(r"^(T\d+)", name)
+    return m.group(1) if m else Path(name).stem
 
 
-def load_result(path: Path) -> dict | None:
-    """Parse a result file into a normalized row dict, or None if it isn't one."""
-    try:
-        data = json.loads(path.read_text())
-    except (ValueError, OSError):
-        return None
-    # A result file is a dict with an "aggregates" section; this naturally skips
-    # baseline_queries.json (a list) and any unrelated JSON.
-    if not isinstance(data, dict) or "aggregates" not in data:
-        return None
-
-    meta = data.get("metadata", {}) if isinstance(data.get("metadata"), dict) else {}
-    test_id = meta.get("test_id") or _TS_SUFFIX.sub("", path.stem)
-    ctx = _first_context(data)
-
-    return {
-        "path": path,
-        "test_id": test_id,
-        "timestamp": meta.get("timestamp", ""),
-        "config": {key: _resolve(meta, ctx, key) for _, key in CONFIG_COLUMNS},
-        "aggregates": data.get("aggregates", {}),
-        "n_successful": meta.get("n_successful"),
-        "n_total": meta.get("n_queries"),
-    }
+def path_of(name: str) -> str:
+    n = name.lower()
+    if "vercel_proxy" in n:
+        return "vercel_proxy"
+    if "api_direct" in n:
+        return "api_direct"
+    return "other"
 
 
-def _first_context(data: dict) -> dict:
+def first_context(data: dict) -> dict:
     queries = data.get("queries", []) or []
     for q in queries:
         if q.get("status") == "ok" and q.get("context"):
             return q["context"]
-    for q in queries:  # fall back to any context present
+    for q in queries:
         if q.get("context"):
             return q["context"]
     return {}
 
 
-def _resolve(meta: dict, ctx: dict, key: str):
-    """Prefer an explicit metadata value, then the response context."""
-    val = meta.get(key)
-    if val in (None, ""):
-        val = ctx.get(key)
-    return val if val not in (None, "") else None
+def agg(data: dict, stage: str, stat: str):
+    s = data.get("aggregates", {}).get(stage)
+    return s.get(stat) if isinstance(s, dict) else None
+
+
+def load_row(path: Path) -> dict | None:
+    try:
+        data = json.loads(path.read_text())
+    except (ValueError, OSError):
+        return None
+    if not isinstance(data, dict) or "aggregates" not in data:
+        return None  # skips baseline_queries.json and any non-result JSON
+    meta = data.get("metadata", {}) if isinstance(data.get("metadata"), dict) else {}
+    ctx = first_context(data)
+    return {
+        "name": path.name,
+        "link": f"evaluation/latency/{path.name}",
+        "test_id": test_id_of(path.name),
+        "path": path_of(path.name),
+        "embedder": ctx.get("embedder_name"),
+        "dim": ctx.get("embedding_dim"),
+        "store": ctx.get("vector_store"),
+        "rerank_pool": ctx.get("rerank_pool_size"),
+        "server_p50": agg(data, "server_total_ms", "p50"),
+        "server_p95": agg(data, "server_total_ms", "p95"),
+        "e2e_p50": agg(data, "e2e_ms", "p50"),
+        "stages": {key: agg(data, key, "p50") for _, key in STAGE_COLUMNS},
+        "n_ok": meta.get("n_successful"),
+        "n_total": meta.get("n_queries"),
+        "timestamp": meta.get("timestamp", ""),
+    }
+
+
+def discover(directory: Path) -> list[dict]:
+    seen: dict[str, Path] = {}
+    for pattern in PATTERNS:
+        for p in directory.glob(pattern):
+            seen[p.name] = p
+    rows = [r for r in (load_row(p) for p in seen.values()) if r]
+    rows.sort(key=lambda r: (_tnum(r["test_id"]), r["test_id"], r["path"]))
+    return rows
+
+
+def _tnum(test_id: str) -> int:
+    m = re.match(r"^T(\d+)$", test_id)
+    return int(m.group(1)) if m else 9999
 
 
 # ── Formatting ───────────────────────────────────────────────────────────────
 
-def fmt_ms(value) -> str:
-    return str(round(value)) if isinstance(value, (int, float)) else "—"
+def ms(v) -> str:
+    return str(round(v)) if isinstance(v, (int, float)) else "—"
 
 
-def agg(row: dict, stage: str, stat: str):
-    s = row["aggregates"].get(stage)
-    return s.get(stat) if isinstance(s, dict) else None
+def cfg(v) -> str:
+    return str(v) if v not in (None, "") else "—"
 
 
-def fmt_p50_p95(row: dict, stage: str) -> str:
-    p50, p95 = agg(row, stage, "p50"), agg(row, stage, "p95")
-    if p50 is None and p95 is None:
+def server_cell(row: dict) -> str:
+    if row["server_p50"] is None and row["server_p95"] is None:
         return "—"
-    return f"{fmt_ms(p50)} / {fmt_ms(p95)}"
+    return f"{ms(row['server_p50'])} / {ms(row['server_p95'])}"
 
 
-def fmt_cfg(value) -> str:
-    return str(value) if value not in (None, "") else "—"
+def find_baseline(rows: list[dict]) -> dict | None:
+    return next((r for r in rows if r["test_id"] == "T1" and r["path"] == "api_direct"), None)
 
 
 def delta_cell(row: dict, baseline: dict | None) -> str:
     if baseline is None:
         return "—"
-    if row["path"] == baseline["path"]:
-        return "baseline (T1)"
-    cur, base = agg(row, "server_total_ms", "p50"), agg(baseline, "server_total_ms", "p50")
-    if not isinstance(cur, (int, float)) or not isinstance(base, (int, float)) or base == 0:
+    if row is baseline:
+        return "(baseline)"
+    cur, base = row["e2e_p50"], baseline["e2e_p50"]
+    if not isinstance(cur, (int, float)) or not isinstance(base, (int, float)):
         return "—"
-    d = cur - base
-    return f"{d:+.0f} ms ({d / base * 100:+.0f}%)"
+    return f"{cur - base:+.0f} ms"
 
 
-# ── Ordering + baseline selection ────────────────────────────────────────────
-
-def order_key(row: dict):
-    tid = row["test_id"]
-    rank = TEST_ORDER.index(tid) if tid in TEST_ORDER else len(TEST_ORDER)
-    return (rank, tid)
+def plural(n: int, word: str) -> str:
+    return f"{n} {word}" + ("" if n == 1 else "s")
 
 
-def pick_baseline(rows: list[dict], explicit: str | None) -> dict | None:
-    if explicit:
-        return next((r for r in rows if r["test_id"] == explicit), None)
-    # Auto: the most recent run whose test_id starts with "baseline".
-    candidates = [r for r in rows if r["test_id"].lower().startswith("baseline")]
-    if candidates:
-        return max(candidates, key=lambda r: (r["timestamp"], r["test_id"]))
-    return rows[0] if rows else None
+def summary_line(rows: list[dict]) -> str:
+    n = len(rows)
+    n_tests = len({r["test_id"] for r in rows})
+    valid = [r for r in rows if isinstance(r["e2e_p50"], (int, float))]
+    if valid:
+        best = min(valid, key=lambda r: r["e2e_p50"])
+        best_str = (f"Best e2e p50: {round(best['e2e_p50'])} ms "
+                    f"(Test {best['test_id']}, path {best['path']}).")
+    else:
+        best_str = "Best e2e p50: n/a."
+    return f"{plural(n, 'measurement')} across {plural(n_tests, 'test')}. {best_str}"
 
 
-# ── Rendering ────────────────────────────────────────────────────────────────
+def build_table(rows: list[dict], include_stages: bool) -> str:
+    baseline = find_baseline(rows)
+    headers = ["Test", "Path", "Embedder", "Dim", "Store", "server p50/p95 (ms)", "e2e p50 (ms)"]
+    if include_stages:
+        headers += [h for h, _ in STAGE_COLUMNS]
+    headers += ["Δ vs T1 api_direct", "n_ok", "File"]
 
-def build_table(rows: list[dict], baseline: dict | None) -> str:
-    headers = (
-        ["Test"]
-        + [label for label, _ in CONFIG_COLUMNS]
-        + ["server_total p50/p95", "embed p50", "dense p50", "rerank p50",
-           "e2e p50", "Δ vs T1 (server_total p50)", "Runs"]
-    )
     lines = ["| " + " | ".join(headers) + " |",
              "|" + "|".join(["---"] * len(headers)) + "|"]
     for row in rows:
-        cfg = row["config"]
-        n_ok, n_tot = row["n_successful"], row["n_total"]
-        quality = f"{n_ok}/{n_tot}" if n_ok is not None and n_tot is not None else "—"
-        cells = (
-            [row["test_id"]]
-            + [fmt_cfg(cfg.get(key)) for _, key in CONFIG_COLUMNS]
-            + [
-                fmt_p50_p95(row, "server_total_ms"),
-                fmt_ms(agg(row, "embed_ms", "p50")),
-                fmt_ms(agg(row, "dense_search_ms", "p50")),
-                fmt_ms(agg(row, "rerank_ms", "p50")),
-                fmt_ms(agg(row, "e2e_ms", "p50")),
-                delta_cell(row, baseline),
-                quality,
-            ]
-        )
+        n_ok = (f"{row['n_ok']}/{row['n_total']}"
+                if row["n_ok"] is not None and row["n_total"] is not None else "—")
+        cells = [
+            row["test_id"], row["path"], cfg(row["embedder"]), cfg(row["dim"]),
+            cfg(row["store"]), server_cell(row), ms(row["e2e_p50"]),
+        ]
+        if include_stages:
+            cells += [ms(row["stages"][key]) for _, key in STAGE_COLUMNS]
+        cells += [delta_cell(row, baseline), n_ok, f"[{row['name']}]({row['link']})"]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
-
-
-def render(rows: list[dict], baseline: dict | None) -> str:
-    parts = [build_table(rows, baseline)]
-    base_id = baseline["test_id"] if baseline else "none"
-    parts.append("")
-    parts.append(f"_Baseline (T1) = `{base_id}`. Stage timings in ms (p50 unless noted). "
-                 f"`—` = field not present in that run's JSON._")
-    return "\n".join(parts)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -206,35 +199,35 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dir", type=Path, default=HERE,
-                        help=f"directory to scan for result JSONs (default: {HERE})")
-    parser.add_argument("--baseline", default=None,
-                        help="test_id to use as the T1 baseline for the Δ column "
-                             "(default: most recent baseline_* run)")
-    parser.add_argument("--md-file", action="store_true",
-                        help=f"also write the table to {RESULTS_MD.name} (default: stdout only)")
+                        help=f"directory to scan (default: {HERE})")
+    parser.add_argument("--md-file", nargs="?", const=str(RESULTS_MD), default=None,
+                        metavar="PATH",
+                        help=f"also write the table to a markdown file (default: {RESULTS_MD})")
+    parser.add_argument("--include-stages", action="store_true",
+                        help="add per-stage p50 columns (embed/dense/rerank/bm25/net)")
     args = parser.parse_args()
 
-    rows = [r for r in (load_result(p) for p in discover_files(args.dir)) if r]
+    rows = discover(args.dir)
     if not rows:
         print(f"No result files ({' / '.join(PATTERNS)}) found in {args.dir}")
         return
 
-    rows.sort(key=order_key)
-    baseline = pick_baseline(rows, args.baseline)
-    table = render(rows, baseline)
+    summary = summary_line(rows)
+    table = build_table(rows, args.include_stages)
+
+    print(summary)
+    print()
     print(table)
 
     if args.md_file:
-        out = args.dir / RESULTS_MD.name
+        out = Path(args.md_file)
         generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        header = (
+        out.write_text(
             "# Latency results\n\n"
-            f"<!-- AUTO-GENERATED from {' / '.join(PATTERNS)} by summarize.py on "
-            f"{generated}. Do not edit manually; re-run `python "
-            "evaluation/latency/summarize.py --md-file`. -->\n\n"
-            "> Auto-generated from the latency result JSONs — **do not edit manually.**\n\n"
+            f"<!-- AUTO-GENERATED by summarize.py on {generated}. Do not edit by hand; "
+            "re-run `python evaluation/latency/summarize.py --md-file`. -->\n\n"
+            f"{summary}\n\n{table}\n"
         )
-        out.write_text(header + table + "\n")
         print(f"\nWrote {out}")
 
 
