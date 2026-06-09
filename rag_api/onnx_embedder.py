@@ -23,6 +23,9 @@ from tokenizers import Tokenizer
 DEFAULT_MODEL_DIR = Path(__file__).resolve().parent / "onnx" / "e5-small-v2"
 _E5_DIM = 384
 _MAX_TOKENS = 512
+# Texts per ONNX forward pass. Bounds peak memory: BERT attention is O(batch *
+# seq^2), so embedding all ~700 chunks at once would allocate multi-GB activations.
+_EMBED_BATCH = 16
 # e5 is trained with asymmetric instruction prefixes (per the model card).
 _PREFIX = {"query": "query: ", "passage": "passage: "}
 
@@ -40,6 +43,9 @@ class OnnxEmbedder:
         opts = ort.SessionOptions()
         opts.intra_op_num_threads = 1
         opts.inter_op_num_threads = 1
+        # Disable the growing CPU memory arena — caps peak RSS (the arena would
+        # otherwise retain the largest forward's multi-GB allocation).
+        opts.enable_cpu_mem_arena = False
         self._sess = ort.InferenceSession(str(model_dir / "model.onnx"), sess_options=opts)
         self._inputs = {i.name for i in self._sess.get_inputs()}
 
@@ -48,7 +54,17 @@ class OnnxEmbedder:
         return _E5_DIM
 
     def _embed(self, texts: list[str], kind: str) -> np.ndarray:
-        encs = self._tok.encode_batch([_PREFIX[kind] + t for t in texts])
+        prefixed = [_PREFIX[kind] + t for t in texts]
+        # Process in fixed-size batches so peak memory stays bounded regardless of
+        # how many texts are passed (ingestion/migration embed ~700 at once).
+        parts = [self._forward(prefixed[i:i + _EMBED_BATCH])
+                 for i in range(0, len(prefixed), _EMBED_BATCH)]
+        return (np.vstack(parts).astype(np.float32) if parts
+                else np.zeros((0, _E5_DIM), dtype=np.float32))
+
+    def _forward(self, prefixed: list[str]) -> np.ndarray:
+        """One ONNX forward over a small batch → masked mean-pooled, L2-normalized."""
+        encs = self._tok.encode_batch(prefixed)
         maxlen = max(len(e.ids) for e in encs)
         ids = np.zeros((len(encs), maxlen), dtype=np.int64)
         mask = np.zeros((len(encs), maxlen), dtype=np.int64)
@@ -60,7 +76,7 @@ class OnnxEmbedder:
         feed = {"input_ids": ids, "attention_mask": mask}
         if "token_type_ids" in self._inputs:
             feed["token_type_ids"] = np.zeros_like(ids)
-        last_hidden = self._sess.run(None, feed)[0]  # (N, seq, 384)
+        last_hidden = self._sess.run(None, feed)[0]  # (B, seq, 384)
 
         m = mask[..., None].astype(np.float32)
         mean = (last_hidden * m).sum(axis=1) / np.clip(m.sum(axis=1), 1e-9, None)
