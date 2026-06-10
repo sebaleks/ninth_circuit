@@ -1,0 +1,137 @@
+{
+  "status": "LOCKED \u2014 gold approved",
+  "substrate": "cleaned chunk set (drop 16-73915 ch598, content_words<12); 686 chunks",
+  "grading": "denominator=|core|+|marginal|. Headline=CORE recovered in top-5 + sentinel rank. marginal=credit-if-present. excluded=must-not-surface-as-relevant.",
+  "protect_rule": "queries with protect=true (both B-controls + political imprisonment) are negative controls: a change that drops a core case or worsens a core rank is DISQUALIFIED.",
+  "coverage_gaps": {
+    "religious persecution": "DROPPED as query \u2014 sole core (17-72197) is a weak secondary claim, not a clean instrument; logged as corpus coverage gap",
+    "female genital mutilation": "0 cases in corpus",
+    "forced gang recruitment": "0 cases in corpus"
+  },
+  "key_join": "case_link (matches run_baseline top_5_case_ids, retrieval.py:198)",
+  "predictions": {
+    "rrf+case-collapse": {
+      "registered": "2026-06-09 (BEFORE running the intervention)",
+      "domestic_violence_polarity": "NOT expected to fix. Both 23-4420 (victim) and 21-70493 (perpetrator) are topically 'DV'; RRF+case-collapse changes FUSION and POOL, not party-agency reasoning. If 23-4420 surfaces OVER 21-70493, attribute to BM25 de-gating (a RECALL effect from the pool/rank change) \u2014 do NOT bank it as a polarity fix.",
+      "sentinel_hardcheck": "21-70493 (citation lat-01) sits at rank 5 WITH the case present. RRF + case-collapse changes fusion AND pool; if 21-70493 drops OUT of top-5 that is a REGRESSION introduced by this intervention \u2014 flag it; harm-query gains must not hide it.",
+      "political_imprisonment": "2/2 at baseline \u2192 treated as a negative control; report UNCHANGED / IMPROVED / DEGRADED like class-B (a core drop disqualifies)."
+    },
+    "gte-reranker (stacked on \u03b2=0 RRF)": {
+      "registered": "2026-06-09 (BEFORE running gte)",
+      "baseline_for_credit": "\u03b2=0 RRF (rrf_beta0_results.json) \u2014 gte credited ONLY as marginal lift over it, never over old blend",
+      "PRIMARY": "domestic-violence polarity leak. \u03b2=0 RRF left 21-70493 (perpetrator) at #1, 23-4420 (victim) ABSENT \u2014 a party-agency failure nothing else fixed. Does gte, reading query+passage jointly, surface 23-4420 OVER 21-70493? This is the test that justifies gte's existence; report FIRST.",
+      "SECONDARY": "sexual assault \u2014 does gte lift 14-70905 above rank 4? NOTE: already in top-5, so under the adopted rule this is BELOW product resolution \u2014 NOT sufficient justification to deploy gte. Report, do not bank as a ship reason.",
+      "controls": "all 6 queries; same control-safety + sentinel + boundary-proximity checks, compared vs \u03b2=0 RRF.",
+      "deploy_bar": "RRF already clears the product bar on sexual assault (14-70905 in top-5). To justify a 149M model on free tier, gte must fix something RRF did NOT \u2014 i.e. surface 23-4420 over 21-70493 (DV polarity) and/or pull a core that's currently OUT of top-5 into it, WITHOUT dropping any protected core. If gte's only win is intra-top-5 polish, the verdict is: DO NOT DEPLOY."
+    }
+  },
+  "queries": [
+    {
+      "id": "A-sexual-assault",
+      "cls": "A-harm",
+      "query": "sexual assault",
+      "sentinel": "14-70905",
+      "protect": false,
+      "denominator": 2,
+      "gold": {
+        "core": {
+          "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/01/28/14-70905.pdf": "police raped her as political retaliation \u2014 sexual violence is the harm"
+        },
+        "marginal": {
+          "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/12/16/25-120.pdf": "sexually abused by her brother as a minor \u2014 individual SA fact, secondary to PSG claim"
+        },
+        "excluded": {
+          "https://cdn.ca9.uscourts.gov/datastore/memoranda/2023/01/17/17-73156.pdf": "NEGATION: court found 'no evidence she was sexually assaulted or raped'; argument waived"
+        }
+      }
+    },
+    {
+      "id": "A-domestic-violence",
+      "cls": "A-harm",
+      "query": "domestic violence",
+      "protect": false,
+      "diagnostic": {
+        "type": "claim-agency/polarity",
+        "watch_case": "21-70493",
+        "note": "system surfaces the DV PERPETRATOR as top hit, not the victim-claimant. Distinct from the enumeration-attractor disease; fusion changes are NOT expected to fix this. Tracked separately."
+      },
+      "denominator": 1,
+      "gold": {
+        "core": {
+          "https://cdn.ca9.uscourts.gov/datastore/opinions/2026/01/20/23-4420.pdf": "repeated beatings/stabbing by her gang-member partner \u2014 intimate-partner violence claim"
+        },
+        "marginal": {},
+        "excluded": {
+          "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/01/28/14-70905.pdf": "perpetrator is the POLICE (political), not a partner \u2014 not DV",
+          "https://cdn.ca9.uscourts.gov/datastore/opinions/2022/09/14/21-70493.pdf": "ROLE-REVERSAL: petitioner is the DV perpetrator (his conviction), not a victim-claimant",
+          "https://cdn.ca9.uscourts.gov/datastore/opinions/2020/12/21/17-72197.pdf": "'domestic violence' appears only in his criminal-record list"
+        }
+      }
+    },
+    {
+      "id": "A-political-imprisonment",
+      "cls": "A-harm",
+      "query": "political imprisonment",
+      "protect": true,
+      "protect_note": "scores 2/2 at baseline \u2192 ADDITIONAL negative control; knocking either core out of top-5 disqualifies a change",
+      "denominator": 2,
+      "gold": {
+        "core": {
+          "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/05/16/24-2787.pdf": "Nicaragua antigovernment march \u2192 threats, father arrested \u2014 political persecution",
+          "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf": "Singh (India) detained/threatened with arrest by police for political activity"
+        },
+        "marginal": {},
+        "excluded": {
+          "https://cdn.ca9.uscourts.gov/datastore/opinions/2025/08/27/24-631.pdf": "detention was US immigration custody, not political imprisonment abroad",
+          "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/12/14/15-71553.pdf": "arrest was US illegal-reentry prosecution",
+          "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/03/24/18-17274.pdf": "US border-detention policy case"
+        }
+      }
+    },
+    {
+      "id": "B-vocab-mismatch",
+      "cls": "B-control",
+      "query": "childhood molestation by a sibling",
+      "protect": true,
+      "denominator": 1,
+      "gold": {
+        "core": {
+          "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/12/16/25-120.pdf": "dense already nails this with BM25=0 (vocab mismatch) \u2014 guards the clean semantic hit"
+        },
+        "marginal": {},
+        "excluded": {}
+      }
+    },
+    {
+      "id": "B-doctrinal-psg",
+      "cls": "B-control",
+      "query": "particular social group",
+      "protect": true,
+      "denominator": 3,
+      "gold": {
+        "core": {
+          "https://cdn.ca9.uscourts.gov/datastore/opinions/2020/12/21/17-72197.pdf": "canonical PSG-cognizability holding (Nguyen)"
+        },
+        "marginal": {
+          "https://cdn.ca9.uscourts.gov/datastore/memoranda/2023/04/20/22-761.pdf": "PSG 'deportees during Covid' cognizability",
+          "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/12/16/25-120.pdf": "'Mexican females' proposed PSG"
+        },
+        "excluded": {}
+      }
+    },
+    {
+      "id": "C-citation-lat01",
+      "cls": "C-sentinel",
+      "query": "What was the final disposition in case 21-70493?",
+      "protect": false,
+      "denominator": 1,
+      "gold": {
+        "core": {
+          "https://cdn.ca9.uscourts.gov/datastore/opinions/2022/09/14/21-70493.pdf": "the exact case named in the query"
+        },
+        "marginal": {},
+        "excluded": {}
+      }
+    }
+  ]
+}
