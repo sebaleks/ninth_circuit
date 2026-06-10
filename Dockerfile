@@ -2,6 +2,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# onnxruntime (rag_api.onnx_embedder, the torch-free e5 path) links libgomp.so.1;
+# python:3.12-slim doesn't ship the OpenMP runtime, so install it.
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

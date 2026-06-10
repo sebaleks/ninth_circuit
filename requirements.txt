@@ -27,3 +27,4 @@ pydantic==2.12.5
 rank-bm25==0.2.2
 sentence-transformers>=3.0,<4.0
 qdrant-client==1.12.1
+onnxruntime==1.26.0   # torch-free e5 inference path (rag_api.onnx_embedder); tokenizers comes via transformers
