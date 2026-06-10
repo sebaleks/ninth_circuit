@@ -50,6 +50,11 @@ STAGE_COLUMNS = [
 # ── Extraction ───────────────────────────────────────────────────────────────
 
 def test_id_of(name: str) -> str:
+    # Filenames are "<test-id>_baseline_<label>_<ts>.json"; the test id is
+    # whatever precedes "_baseline_" (covers T1, T2, T_optimized, …). Fall back
+    # to the legacy "T<digits>" prefix, then the bare stem.
+    if "_baseline_" in name:
+        return name.split("_baseline_", 1)[0]
     m = re.match(r"^(T\d+)", name)
     return m.group(1) if m else Path(name).stem
 

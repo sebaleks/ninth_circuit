@@ -1,0 +1,390 @@
+{
+  "metadata": {
+    "rag_url": "https://ninth-circuit-seb-s-projects24.vercel.app/api/rag/search",
+    "test_id": "T_optimized",
+    "label": "vercel_proxy",
+    "output_path": "/Users/sebastiansteen/Desktop/Asylum_RAG_Free/evaluation/latency/T_optimized_baseline_vercel_proxy_20260610T002113Z.json",
+    "queries_path": "/Users/sebastiansteen/Desktop/Asylum_RAG_Free/evaluation/latency/baseline_queries.json",
+    "n_queries": 10,
+    "warmup_query": "lat-01",
+    "pause_seconds": 4.0,
+    "timestamp": "2026-06-10T00:22:01.888788+00:00",
+    "git_sha": "1a74fb2226cb4b9691c11e7876e1be58001154c2",
+    "n_successful": 10,
+    "n_refused": 0,
+    "n_errors": 0,
+    "server_timings_available": true
+  },
+  "aggregates": {
+    "embed_ms": {
+      "p50": 11.97,
+      "p95": 14.0,
+      "mean": 11.8,
+      "n": 10
+    },
+    "dense_search_ms": {
+      "p50": 7.28,
+      "p95": 44.25,
+      "mean": 14.67,
+      "n": 10
+    },
+    "rerank_ms": {
+      "p50": null,
+      "p95": null,
+      "mean": null,
+      "n": 0
+    },
+    "bm25_ms": {
+      "p50": 1.64,
+      "p95": 68.98,
+      "mean": 16.22,
+      "n": 10
+    },
+    "fusion_dedup_ms": {
+      "p50": 0.12,
+      "p95": 0.14,
+      "mean": 0.12,
+      "n": 10
+    },
+    "server_total_ms": {
+      "p50": 27.77,
+      "p95": 87.31,
+      "mean": 42.8,
+      "n": 10
+    },
+    "e2e_ms": {
+      "p50": 533.61,
+      "p95": 740.32,
+      "mean": 562.49,
+      "n": 10
+    },
+    "network_overhead_ms": {
+      "p50": 501.52,
+      "p95": 707.12,
+      "mean": 519.69,
+      "n": 10
+    }
+  },
+  "queries": [
+    {
+      "id": "lat-01",
+      "query": "What was the final disposition in case 21-70493?",
+      "status": "ok",
+      "server_timings": {
+        "embed_ms": 12.32,
+        "embed_retry_sleep_ms": 0.0,
+        "embed_attempts": 1,
+        "dense_search_ms": 6.71,
+        "bm25_ms": 0.79,
+        "fusion_dedup_ms": 0.09,
+        "server_total_ms": 19.91,
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "vector_store": "qdrant"
+      },
+      "context": {
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "rerank_pool_size": null,
+        "vector_store": "qdrant"
+      },
+      "e2e_ms": 758.98,
+      "network_overhead_ms": 739.07,
+      "top_5_case_ids": [
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/12/14/15-71553.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2025/07/18/25-2581.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2020/07/06/19-16487.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/08/15/19-70961.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2022/09/14/21-70493.pdf"
+      ]
+    },
+    {
+      "id": "lat-02",
+      "query": "In which countries did the petitioners face persecution according to these cases?",
+      "status": "ok",
+      "server_timings": {
+        "embed_ms": 12.16,
+        "embed_retry_sleep_ms": 0.0,
+        "embed_attempts": 1,
+        "dense_search_ms": 35.69,
+        "bm25_ms": 1.48,
+        "fusion_dedup_ms": 0.1,
+        "server_total_ms": 49.44,
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "vector_store": "qdrant"
+      },
+      "context": {
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "rerank_pool_size": null,
+        "vector_store": "qdrant"
+      },
+      "e2e_ms": 717.52,
+      "network_overhead_ms": 668.08,
+      "top_5_case_ids": [
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/05/16/24-2787.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2023/01/17/17-73156.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2024/02/20/22-629.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2020/12/21/17-72197.pdf"
+      ]
+    },
+    {
+      "id": "lat-03",
+      "query": "Were any petitions remanded for further proceedings?",
+      "status": "ok",
+      "server_timings": {
+        "embed_ms": 11.79,
+        "embed_retry_sleep_ms": 0.0,
+        "embed_attempts": 1,
+        "dense_search_ms": 6.53,
+        "bm25_ms": 13.94,
+        "fusion_dedup_ms": 0.12,
+        "server_total_ms": 32.38,
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "vector_store": "qdrant"
+      },
+      "context": {
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "rerank_pool_size": null,
+        "vector_store": "qdrant"
+      },
+      "e2e_ms": 680.24,
+      "network_overhead_ms": 647.86,
+      "top_5_case_ids": [
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/01/28/14-70905.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/06/17/17-71346.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2026/01/20/23-4420.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2022/04/26/16-72752.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/12/14/15-71553.pdf"
+      ]
+    },
+    {
+      "id": "lat-04",
+      "query": "Find cases about gang-based persecution from Central America.",
+      "status": "ok",
+      "server_timings": {
+        "embed_ms": 11.7,
+        "embed_retry_sleep_ms": 0.0,
+        "embed_attempts": 1,
+        "dense_search_ms": 7.34,
+        "bm25_ms": 1.3,
+        "fusion_dedup_ms": 0.09,
+        "server_total_ms": 20.42,
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "vector_store": "qdrant"
+      },
+      "context": {
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "rerank_pool_size": null,
+        "vector_store": "qdrant"
+      },
+      "e2e_ms": 483.66,
+      "network_overhead_ms": 463.24,
+      "top_5_case_ids": [
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/06/17/17-71346.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/07/17/18-70084.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/05/16/24-2787.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2023/01/17/17-73156.pdf"
+      ]
+    },
+    {
+      "id": "lat-05",
+      "query": "Find cases involving family-targeted violence.",
+      "status": "ok",
+      "server_timings": {
+        "embed_ms": 9.91,
+        "embed_retry_sleep_ms": 0.0,
+        "embed_attempts": 1,
+        "dense_search_ms": 9.12,
+        "bm25_ms": 67.36,
+        "fusion_dedup_ms": 0.12,
+        "server_total_ms": 86.52,
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "vector_store": "qdrant"
+      },
+      "context": {
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "rerank_pool_size": null,
+        "vector_store": "qdrant"
+      },
+      "e2e_ms": 599.55,
+      "network_overhead_ms": 513.03,
+      "top_5_case_ids": [
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/01/28/14-70905.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/05/16/24-2787.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/06/17/17-71346.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/07/17/18-70084.pdf"
+      ]
+    },
+    {
+      "id": "lat-06",
+      "query": "Find cases that discuss credibility findings.",
+      "status": "ok",
+      "server_timings": {
+        "embed_ms": 9.0,
+        "embed_retry_sleep_ms": 0.0,
+        "embed_attempts": 1,
+        "dense_search_ms": 7.22,
+        "bm25_ms": 0.94,
+        "fusion_dedup_ms": 0.14,
+        "server_total_ms": 17.31,
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "vector_store": "qdrant"
+      },
+      "context": {
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "rerank_pool_size": null,
+        "vector_store": "qdrant"
+      },
+      "e2e_ms": 554.05,
+      "network_overhead_ms": 536.74,
+      "top_5_case_ids": [
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/08/10/17-70324.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/12/14/15-71553.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/01/28/14-70905.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/08/15/19-70961.pdf"
+      ]
+    },
+    {
+      "id": "lat-07",
+      "query": "What does the court say is required to establish past persecution?",
+      "status": "ok",
+      "server_timings": {
+        "embed_ms": 13.8,
+        "embed_retry_sleep_ms": 0.0,
+        "embed_attempts": 1,
+        "dense_search_ms": 7.19,
+        "bm25_ms": 1.49,
+        "fusion_dedup_ms": 0.1,
+        "server_total_ms": 22.58,
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "vector_store": "qdrant"
+      },
+      "context": {
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "rerank_pool_size": null,
+        "vector_store": "qdrant"
+      },
+      "e2e_ms": 438.4,
+      "network_overhead_ms": 415.82,
+      "top_5_case_ids": [
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/08/15/19-70961.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/05/16/24-2787.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2026/01/20/23-4420.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2020/02/28/18-17274.pdf"
+      ]
+    },
+    {
+      "id": "lat-08",
+      "query": "How does the court evaluate well-founded fear of future persecution?",
+      "status": "ok",
+      "server_timings": {
+        "embed_ms": 14.17,
+        "embed_retry_sleep_ms": 0.0,
+        "embed_attempts": 1,
+        "dense_search_ms": 51.25,
+        "bm25_ms": 2.79,
+        "fusion_dedup_ms": 0.13,
+        "server_total_ms": 68.34,
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "vector_store": "qdrant"
+      },
+      "context": {
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "rerank_pool_size": null,
+        "vector_store": "qdrant"
+      },
+      "e2e_ms": 390.07,
+      "network_overhead_ms": 321.73,
+      "top_5_case_ids": [
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/05/16/24-2787.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/08/15/19-70961.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2020/02/28/18-17274.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2024/02/20/22-629.pdf"
+      ]
+    },
+    {
+      "id": "lat-09",
+      "query": "What kinds of evidence support a credibility finding?",
+      "status": "ok",
+      "server_timings": {
+        "embed_ms": 10.99,
+        "embed_retry_sleep_ms": 0.0,
+        "embed_attempts": 1,
+        "dense_search_ms": 6.53,
+        "bm25_ms": 70.31,
+        "fusion_dedup_ms": 0.14,
+        "server_total_ms": 87.96,
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "vector_store": "qdrant"
+      },
+      "context": {
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "rerank_pool_size": null,
+        "vector_store": "qdrant"
+      },
+      "e2e_ms": 489.29,
+      "network_overhead_ms": 401.33,
+      "top_5_case_ids": [
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/08/10/17-70324.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/12/14/15-71553.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2022/08/12/20-70397.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/01/28/14-70905.pdf"
+      ]
+    },
+    {
+      "id": "lat-10",
+      "query": "What constitutes a particular social group in these opinions?",
+      "status": "ok",
+      "server_timings": {
+        "embed_ms": 12.15,
+        "embed_retry_sleep_ms": 0.0,
+        "embed_attempts": 1,
+        "dense_search_ms": 9.09,
+        "bm25_ms": 1.78,
+        "fusion_dedup_ms": 0.13,
+        "server_total_ms": 23.15,
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "vector_store": "qdrant"
+      },
+      "context": {
+        "embedder_name": "intfloat/e5-small-v2",
+        "embedding_dim": 384,
+        "rerank_pool_size": null,
+        "vector_store": "qdrant"
+      },
+      "e2e_ms": 513.16,
+      "network_overhead_ms": 490.01,
+      "top_5_case_ids": [
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2020/12/21/17-72197.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2023/04/20/22-761.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/06/17/17-71346.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/opinions/2026/01/20/23-4420.pdf",
+        "https://cdn.ca9.uscourts.gov/datastore/memoranda/2021/05/10/20-71340.pdf"
+      ]
+    }
+  ]
+}
