@@ -1,0 +1,203 @@
+{
+  "label": "gte-reranker stacked on \u03b2=0 RRF",
+  "config": "fusion=rrf, \u03b2=0.0, pool=25, reranker=gte",
+  "results": {
+    "A-sexual-assault": [
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/12/14/15-71553.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/12/16/25-120.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/01/28/14-70905.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2025/07/18/25-2581.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2020/07/06/19-16487.pdf"
+    ],
+    "A-domestic-violence": [
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2022/09/14/21-70493.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/12/14/15-71553.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2020/07/06/19-16487.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/01/28/14-70905.pdf"
+    ],
+    "A-political-imprisonment": [
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/05/16/24-2787.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2025/04/23/23-3858.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/03/24/18-17274.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/07/17/18-70084.pdf"
+    ],
+    "B-vocab-mismatch": [
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/12/16/25-120.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/01/12/20-72806.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/01/28/14-70905.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/12/14/15-71553.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2023/01/17/17-73156.pdf"
+    ],
+    "B-doctrinal-psg": [
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2020/12/21/17-72197.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2025/12/16/25-120.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2023/04/20/22-761.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2020/06/17/17-71346.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2024/02/20/22-629.pdf"
+    ],
+    "C-citation-lat01": [
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2021/12/14/15-71553.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2025/07/18/25-2581.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2023/08/15/19-70961.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/memoranda/2023/04/20/22-761.pdf",
+      "https://cdn.ca9.uscourts.gov/datastore/opinions/2020/07/06/19-16487.pdf"
+    ]
+  },
+  "rows": [
+    {
+      "id": "A-sexual-assault",
+      "cls": "A-harm",
+      "query": "sexual assault",
+      "denominator": 2,
+      "protect": false,
+      "top5": [
+        "15-71553",
+        "25-120",
+        "14-70905",
+        "25-2581",
+        "19-16487"
+      ],
+      "core_recovered": 1,
+      "core_total": 1,
+      "core_ranks": {
+        "14-70905": 3
+      },
+      "marginal_present": [
+        "25-120"
+      ],
+      "excluded_leaked": [],
+      "sentinel_rank": 3,
+      "diagnostic": null
+    },
+    {
+      "id": "A-domestic-violence",
+      "cls": "A-harm",
+      "query": "domestic violence",
+      "denominator": 1,
+      "protect": false,
+      "top5": [
+        "21-70493",
+        "15-71553",
+        "20-72806",
+        "19-16487",
+        "14-70905"
+      ],
+      "core_recovered": 0,
+      "core_total": 1,
+      "core_ranks": {
+        "23-4420": null
+      },
+      "marginal_present": [],
+      "excluded_leaked": [
+        "14-70905",
+        "21-70493"
+      ],
+      "sentinel_rank": null,
+      "diagnostic": {
+        "type": "claim-agency/polarity",
+        "watch_case": "21-70493",
+        "watch_rank": 1
+      }
+    },
+    {
+      "id": "A-political-imprisonment",
+      "cls": "A-harm",
+      "query": "political imprisonment",
+      "denominator": 2,
+      "protect": true,
+      "top5": [
+        "24-2787",
+        "20-72806",
+        "23-3858",
+        "18-17274",
+        "18-70084"
+      ],
+      "core_recovered": 2,
+      "core_total": 2,
+      "core_ranks": {
+        "24-2787": 1,
+        "20-72806": 2
+      },
+      "marginal_present": [],
+      "excluded_leaked": [
+        "18-17274"
+      ],
+      "sentinel_rank": null,
+      "diagnostic": null
+    },
+    {
+      "id": "B-vocab-mismatch",
+      "cls": "B-control",
+      "query": "childhood molestation by a sibling",
+      "denominator": 1,
+      "protect": true,
+      "top5": [
+        "25-120",
+        "20-72806",
+        "14-70905",
+        "15-71553",
+        "17-73156"
+      ],
+      "core_recovered": 1,
+      "core_total": 1,
+      "core_ranks": {
+        "25-120": 1
+      },
+      "marginal_present": [],
+      "excluded_leaked": [],
+      "sentinel_rank": null,
+      "diagnostic": null
+    },
+    {
+      "id": "B-doctrinal-psg",
+      "cls": "B-control",
+      "query": "particular social group",
+      "denominator": 3,
+      "protect": true,
+      "top5": [
+        "17-72197",
+        "25-120",
+        "22-761",
+        "17-71346",
+        "22-629"
+      ],
+      "core_recovered": 1,
+      "core_total": 1,
+      "core_ranks": {
+        "17-72197": 1
+      },
+      "marginal_present": [
+        "22-761",
+        "25-120"
+      ],
+      "excluded_leaked": [],
+      "sentinel_rank": null,
+      "diagnostic": null
+    },
+    {
+      "id": "C-citation-lat01",
+      "cls": "C-sentinel",
+      "query": "What was the final disposition in case 21-70493?",
+      "denominator": 1,
+      "protect": false,
+      "top5": [
+        "15-71553",
+        "25-2581",
+        "19-70961",
+        "22-761",
+        "19-16487"
+      ],
+      "core_recovered": 0,
+      "core_total": 1,
+      "core_ranks": {
+        "21-70493": null
+      },
+      "marginal_present": [],
+      "excluded_leaked": [],
+      "sentinel_rank": null,
+      "diagnostic": null
+    }
+  ]
+}
