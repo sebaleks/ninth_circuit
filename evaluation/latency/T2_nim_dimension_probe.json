@@ -1,0 +1,55 @@
+{
+  "test": "T2 \u2014 NIM nemotron-embed-1b dimension \u00d7 latency (closeout)",
+  "measured": "2026-06-10",
+  "model": "nvidia/llama-nemotron-embed-1b-v2",
+  "trials_per_dim": 6,
+  "method": "interleaved (512/1024/2048 cycled) direct NIM embeddings.create with dimensions= param",
+  "note": "NIM free-tier embed degraded; per-call range 6.9-20.7s; dimensions= honored (vec_len matches) but latency-neutral",
+  "by_dim": {
+    "512": {
+      "vec_len": 512,
+      "p50_ms": 17269,
+      "p95_ms": 18409,
+      "mean_ms": 14984,
+      "n": 6,
+      "raw_ms": [
+        6922,
+        19745,
+        18409,
+        17202,
+        17335,
+        10292
+      ]
+    },
+    "1024": {
+      "vec_len": 1024,
+      "p50_ms": 15082,
+      "p95_ms": 17090,
+      "mean_ms": 15294,
+      "n": 6,
+      "raw_ms": [
+        15631,
+        14534,
+        13318,
+        20646,
+        10545,
+        17090
+      ]
+    },
+    "2048": {
+      "vec_len": 2048,
+      "p50_ms": 14777,
+      "p95_ms": 19215,
+      "mean_ms": 14845,
+      "n": 6,
+      "raw_ms": [
+        12879,
+        20729,
+        16675,
+        10073,
+        19215,
+        9500
+      ]
+    }
+  }
+}

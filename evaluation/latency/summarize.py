@@ -37,20 +37,31 @@ RESULTS_MD = HERE / "RESULTS.md"
 # T1_baseline_vercel_proxy*, T2_baseline_*, T3_*, T4_*) and any test_*.json.
 PATTERNS = ["T*_*.json", "test_*.json"]
 
-# Experiments that were intentionally NOT measured — recorded so a missing row in the
-# table isn't a mystery. (The table is data-driven; parked experiments have no JSON.)
-PARKED_NOTE = """## Parked experiments
+# T2 isn't a table row (it's a direct NIM-embed-latency probe, not a /search run) —
+# recorded here so its absence from the table above isn't a mystery. Raw data:
+# T2_nim_dimension_probe.json.
+PARKED_NOTE = """## T2 — NIM Matryoshka dimension × latency (closed out 2026-06-10)
 
-**T2 — NIM 512-dim Matryoshka — parked, no baseline captured.**
-- **NIM free-tier embed latency degraded to ~13 s** during the T2 probe — vs T1's clean
-  NIM embed p50 **559 ms** (a ~23× spike). A clean baseline couldn't be taken, and this
-  transient instability was a key reason for removing the NIM dependency entirely.
-  *(Observed live during probing; never saved as a result JSON — hence no T2 row above.)*
-- The dimension probe showed `dimensions=` is **latency-neutral** (512 ≈ 2048 ≈ none):
-  Matryoshka is a **storage lever, not a latency lever**, so a T2 latency row would add nothing.
+Re-attempted the parked T2 probe (interleaved 512/1024/2048, 6 trials each, direct
+NIM `embeddings.create` with `dimensions=`). Raw data: `T2_nim_dimension_probe.json`.
 
-→ We went straight from **T1** (NIM: embed 559 ms + rerank 549 ms → server_total **1110 ms**)
-to **T_optimized** (local ONNX e5 + Qdrant, no NIM → server_total **29 ms**)."""
+| dim | vec_len | p50 | p95 | mean | n |
+|---|---|---|---|---|---|
+| 512  | 512  | 17,269 ms | 18,409 ms | 14,984 ms | 6 |
+| 1024 | 1024 | 15,082 ms | 17,090 ms | 15,294 ms | 6 |
+| 2048 | 2048 | 14,777 ms | 19,215 ms | 14,845 ms | 6 |
+
+- **NIM free-tier embed is still degraded:** p50 **~15 s**, per-call range 6.9–20.7 s
+  (vs T1's clean NIM embed p50 **559 ms** — ~27×). Not a transient blip; reproduced 2026-06-10.
+- **`dimensions=` is latency-neutral:** 512 ≈ 1024 ≈ 2048 (means within ~3%); the per-call
+  variance dwarfs any between-dimension difference. Truncation is honored (vec_len matches)
+  but does nothing for latency — **Matryoshka is a storage lever, not a latency lever.**
+- **Why it's not a table row:** this is NIM embed-API latency in isolation, not a deployed
+  `/search` run, so it has no `T2_baseline_*.json`.
+
+→ Confirms the **T_optimized** pivot: local ONNX e5 embed ~12 ms vs NIM ~15 s (~1000×).
+T1 (NIM: embed 559 ms + rerank 549 ms → server_total **1110 ms**) → T_optimized
+(local ONNX e5 + Qdrant, no NIM → server_total **29 ms**)."""
 
 # Extra stage columns shown only with --include-stages: (header, stage key).
 STAGE_COLUMNS = [
