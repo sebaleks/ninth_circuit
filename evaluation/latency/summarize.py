@@ -61,7 +61,24 @@ NIM `embeddings.create` with `dimensions=`). Raw data: `T2_nim_dimension_probe.j
 
 → Confirms the **T_optimized** pivot: local ONNX e5 embed ~12 ms vs NIM ~15 s (~1000×).
 T1 (NIM: embed 559 ms + rerank 549 ms → server_total **1110 ms**) → T_optimized
-(local ONNX e5 + Qdrant, no NIM → server_total **29 ms**)."""
+(local ONNX e5 + Qdrant, no NIM → server_total **29 ms**).
+
+## T3 — FAISS → Qdrant dense-search swap (isolated stage, 2026-06-10)
+
+Isolated the *dense-search stage* (the T3 variable) at the baseline's 2048-d / 687 vecs,
+excluding embed (the same NIM ~15 s for both, which would swamp it). Random 2048-d vectors
+— search latency is value-independent. Raw data: `T3_faiss_vs_qdrant_dense.json`.
+
+| backend | p50 | p95 | mean |
+|---|---|---|---|
+| FAISS (in-process IVFPQ) | 0.04 ms | 0.04 ms | 0.04 ms |
+| Qdrant (Cloud, from laptop) | 55 ms | 136 ms | 67 ms |
+
+- The FAISS→Qdrant cost is a **network round-trip**: ~55 ms from a laptop, but ~**7–8 ms
+  from Render** (per the T_optimized per-stage data — co-located with Qdrant Cloud).
+- Either way it's **negligible vs the NIM embed (~15 s)** that dominates any NIM pipeline
+  (the T3 variable is <0.5 % of the NIM end-to-end). This is why an isolated NIM-based T3
+  was never worth running for latency — recorded here for completeness."""
 
 # Extra stage columns shown only with --include-stages: (header, stage key).
 STAGE_COLUMNS = [
