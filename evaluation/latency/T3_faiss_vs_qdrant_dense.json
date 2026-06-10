@@ -1,0 +1,21 @@
+{
+  "test": "T3 \u2014 FAISS vs Qdrant dense-search latency (isolated stage)",
+  "measured": "2026-06-10",
+  "dim": 2048,
+  "n_vectors": 687,
+  "faiss_index": "IndexIVFPQ",
+  "trials": 40,
+  "note": "random 2048-d vectors (latency is value-independent); Qdrant timed from laptop not Render; embed stage excluded (NIM ~15s would swamp this in any full pipeline).",
+  "faiss_ms": {
+    "p50": 0.04,
+    "p95": 0.04,
+    "mean": 0.04,
+    "n": 40
+  },
+  "qdrant_ms": {
+    "p50": 55.47,
+    "p95": 135.98,
+    "mean": 66.89,
+    "n": 40
+  }
+}
