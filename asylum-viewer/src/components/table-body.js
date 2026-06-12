@@ -96,7 +96,7 @@ export default function TableBody({ rows, columns, onRowClick, frozenCols = 0, f
                       } : {}),
                     }}
                     className={[
-                      'px-5 py-3 border-r border-border max-w-[280px] overflow-hidden text-ellipsis whitespace-nowrap align-middle text-sm',
+                      'px-5 py-3 border-r border-border max-w-[280px] overflow-hidden text-ellipsis whitespace-nowrap align-middle text-sm text-text',
                       isLastFrozenCol ? 'shadow-[2px_0_6px_rgba(0,0,0,0.12)]' : '',
                     ].filter(Boolean).join(' ')}
                   >
