@@ -24,8 +24,27 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-html {
-  color-scheme: light;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #111010;
+    --color-surface: #1a1916;
+    --color-border: #2e2c28;
+    --color-text: #e8e5de;
+    --color-muted: #6b6860;
+    --color-accent: #e07848;
+    --color-accent-hover: #c4622d;
+    --color-header-bg: #0a0a09;
+    --color-header-text: #e8e5de;
+    --color-th-bg: #211f1c;
+    --color-filter-bg: #161512;
+    --color-yes-bg: #1a2e1a;
+    --color-yes-text: #6abf6a;
+    --color-no-bg: #252320;
+    --color-no-text: #7a7770;
+    --color-row-alt: #1e1c19;
+    --color-row-hover: #2a2723;
+    --color-drawer-bg: #1a1916;
+  }
 }
 
 * {
