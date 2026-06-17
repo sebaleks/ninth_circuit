@@ -16,6 +16,10 @@ data/*
 !data/.gitkeep
 !data/index.faiss
 !data/metadata.parquet
+# Full-corpus NIM-2048 deploy artifacts (INDEX_DIR=data/nim2048_full; qdrant-backed)
+!data/nim2048_full/
+!data/nim2048_full/metadata.parquet
+!data/nim2048_full/config.json
 ca9_*_opinions/
 *.csv
 !logs/*.csv

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Protocol
 
@@ -54,12 +55,21 @@ HYBRID_ALPHA = 0.6
 #   USE_RERANKER:  true (default) → rerank dense candidates with the NIM
 #                  cross-encoder (the sigmoid becomes the "semantic" signal);
 #                  false → skip rerank, dense cosine is the semantic signal.
-#   FUSION_METHOD: "blend" (default) → HYBRID_ALPHA*semantic + (1-ALPHA)*bm25;
-#                  "rrf" → reciprocal-rank fusion of the semantic + BM25 rankings.
-# The two knobs are fully ORTHOGONAL — any of the 4 combinations is valid.
+#   FUSION_METHOD: "union_rrf" (default) → dense and BM25 each retrieve their OWN
+#                  top-k, fused by reciprocal rank. BM25 contributes its own
+#                  candidates (not just re-weighting the dense pool), so exact-term
+#                  lookups dense misses — dockets, case names, statutes — are
+#                  recovered. Negligible cost on thematic. (Reranker not used here.)
+#                  "blend" → HYBRID_ALPHA*semantic + (1-ALPHA)*bm25 over the dense
+#                  pool (BM25 only re-weights; capped by dense's pool — the old path).
+#                  "rrf" → reciprocal-rank fusion of semantic + BM25 over the pool.
 USE_RERANKER = True
-FUSION_METHOD = "blend"
-RRF_K = 60  # reciprocal-rank-fusion constant (standard default)
+FUSION_METHOD = "union_rrf"
+RRF_K = 60  # reciprocal-rank-fusion constant (env RRF_K; re-read in load()). Standard default.
+# Per-retriever depth for union-RRF: dense AND BM25 each fetch their own top-UNION_TOPK before
+# fusing (env UNION_TOPK; re-read in load()). 100 reproduced the validated lifts (thematic
+# no-regression, citation 0.23→0.96, named-authority 0.07→0.21). Configurable, not hardcoded.
+UNION_TOPK = 100
 
 # Tokenizer shared by query and corpus so BM25 sees consistent terms.
 _STOPWORDS = {
@@ -209,7 +219,11 @@ def _ensure_bm25() -> BM25Okapi | None:
         raise RuntimeError("retrieval.load() must be called before BM25 access")
     if _BM25_META_ID == id(META):
         return _BM25
-    corpus_tokens = [_query_tokens(t) for t in META["text"].tolist()]
+    # Intern tokens so identical strings across ~31k chunks share one object. BM25 is
+    # now ALWAYS-ON (union_rrf default), so this ~-59% footprint cut is required for the
+    # full corpus to fit the 512 MB box (post-intern ceiling ≈44k chunks > ~31k corpus).
+    corpus_tokens = [[sys.intern(t) for t in _query_tokens(txt)]
+                     for txt in META["text"].tolist()]
     if not any(corpus_tokens):
         _BM25 = None  # degenerate; scoring will return zeros
     else:
@@ -271,7 +285,7 @@ def load() -> None:
     config.json. The embedder is chosen from config.json so query-time embedding
     matches how the index was built; reranker and generation stay on NIM.
     """
-    global INDEX, META, EMBEDDER, STORE, NIM_QUERY_DIM, USE_RERANKER, FUSION_METHOD
+    global INDEX, META, EMBEDDER, STORE, NIM_QUERY_DIM, USE_RERANKER, FUSION_METHOD, RRF_K, UNION_TOPK
     index_dir = _index_dir()
     meta_path = index_dir / "metadata.parquet"
     config_path = index_dir / "config.json"
@@ -300,7 +314,9 @@ def load() -> None:
     EMBEDDER, NIM_QUERY_DIM = _resolve_embedder(config_path, STORE.dim)
     # Retrieval knobs (env; defaults preserve T1). Read at startup, like VECTOR_STORE.
     USE_RERANKER = os.environ.get("USE_RERANKER", "true").strip().lower() != "false"
-    FUSION_METHOD = os.environ.get("FUSION_METHOD", "blend").strip().lower()
+    FUSION_METHOD = os.environ.get("FUSION_METHOD", "union_rrf").strip().lower()
+    RRF_K = int(os.environ.get("RRF_K", str(RRF_K)))
+    UNION_TOPK = int(os.environ.get("UNION_TOPK", str(UNION_TOPK)))
     # Pre-warm BM25 so the first query doesn't pay the build cost
     _ensure_bm25()
 
@@ -410,6 +426,72 @@ def _fuse_rrf(hits: list[dict], key_a: str, key_b: str, k: int = RRF_K) -> None:
         h["score"] = rrf[id(h)]
 
 
+def _bm25_topk(query: str, k: int) -> list[tuple[int, float]]:
+    """BM25's OWN top-k chunks over the FULL corpus, as (chunk_row, raw_score), best first.
+
+    Unlike `_bm25_scores_for_query` (which only re-weights an existing dense pool), this lets
+    BM25 contribute its own candidates for union fusion — the lexical retriever surfaces
+    exact-term matches (dockets, case names, statutes) that dense never pooled (measured:
+    dense pools only ~20% of named-authority cases, ~39% of dockets).
+    """
+    bm25 = _ensure_bm25()
+    tokens = _query_tokens(query)
+    if bm25 is None or not tokens:
+        return []
+    raw = bm25.get_scores(tokens)
+    order = np.argsort(-raw)[:k]
+    return [(int(i), float(raw[i])) for i in order if raw[i] > 0]
+
+
+def _fuse_union_rrf(query: str, dense_hits: list[dict], pool: int, return_k: int) -> list[dict]:
+    """UNION reciprocal-rank fusion of dense and BM25 as INDEPENDENT retrievers.
+
+    Dense and BM25 each retrieve their own top-`pool` candidates; a chunk's score is the sum
+    of 1/(k + rank) over whichever rankings it appears in (absent from a ranking → no
+    contribution). BM25-only chunks are materialized from META. This is the always-on
+    lexical+dense design (Option 2): thematic ≈ dense, but dockets / case-names / statutes that
+    dense misses are recovered by BM25's own candidates. The reranker is orthogonal and not
+    applied in this fusion (the validated config had it off).
+    """
+    dense_rank = {h["chunk_id"]: r for r, h in enumerate(dense_hits, start=1)}
+    bm25_top = _bm25_topk(query, pool)
+    bm25_rank = {cid: r for r, (cid, _) in enumerate(bm25_top, start=1)}
+    bm25_score = {cid: sc for cid, sc in bm25_top}
+    has_snippet = META is not None and "snippet" in META.columns
+
+    hits = list(dense_hits)
+    seen_ids = set(dense_rank)
+    for cid, _sc in bm25_top:
+        if cid in seen_ids:
+            continue
+        row = META.iloc[cid]
+        hits.append({
+            "chunk_id": cid,
+            "case_link": row["case_link"],
+            "snippet": row["snippet"] if has_snippet else str(row["text"])[:300],
+            "dense_score": 0.0,
+        })
+        seen_ids.add(cid)
+
+    for h in hits:
+        cid = h["chunk_id"]
+        h["bm25_score"] = bm25_score.get(cid, 0.0)
+        h["score"] = ((1.0 / (RRF_K + dense_rank[cid]) if cid in dense_rank else 0.0)
+                      + (1.0 / (RRF_K + bm25_rank[cid]) if cid in bm25_rank else 0.0))
+    hits.sort(key=lambda h: h["score"], reverse=True)
+
+    seen: set[str] = set()
+    deduped: list[dict] = []
+    for h in hits:
+        if h["case_link"] in seen:
+            continue
+        seen.add(h["case_link"])
+        deduped.append(h)
+        if len(deduped) >= return_k:
+            break
+    return deduped
+
+
 def search_with_rerank(query: str, fetch_k: int = 20, return_k: int = 5) -> list[dict]:
     """Dense retrieve, optionally rerank, fuse with BM25, then dedupe by case.
 
@@ -424,8 +506,19 @@ def search_with_rerank(query: str, fetch_k: int = 20, return_k: int = 5) -> list
     Each returned hit has dense_score, bm25_score, (rerank_score if reranked), and
     the fused `score`. Returns ≤ `return_k` results, one per unique case_link.
     """
-    # Fetch a wider pool so we still have enough unique cases after dedupe
+    # ROUTER SEAM (parked Option 1 — see DECISIONS.md "Lexical retrieval"): this function is
+    # the single retrieval entry point. A future query-class router would wrap it — dispatching
+    # conceptual queries to dense-only and lookup queries (docket / case-name / statute) to the
+    # lexical-first path — without changing the fusion internals below. The settled config is the
+    # always-on union-RRF, which needs NO router; the router was parked because lookup-vs-
+    # conceptual classification has no reliable signal (named authorities are open-ended tokens).
+
+    # Fetch a wider pool so we still have enough unique cases after dedupe. For union-RRF the
+    # dense retriever fetches its own top-UNION_TOPK (BM25 fetches the same depth inside
+    # _fuse_union_rrf), so the two retrievers are symmetric and the depth is configurable.
     pool_size = max(fetch_k, return_k * 5)
+    if FUSION_METHOD == "union_rrf":
+        pool_size = max(pool_size, UNION_TOPK)
     hits = search_dense(query, k=pool_size)
     if not hits:
         return []
@@ -433,6 +526,13 @@ def search_with_rerank(query: str, fetch_k: int = 20, return_k: int = 5) -> list
     # Preserve the dense cosine separately before overwriting with the fused score
     for h in hits:
         h["dense_score"] = h["score"]
+
+    # Always-on UNION-RRF (settled default): BM25 retrieves its OWN candidates and is fused with
+    # dense by reciprocal rank — recovers exact-term lookups (dockets, case names, statutes) the
+    # in-pool blend cannot, at negligible thematic cost. Returns here; the blend/rrf paths below
+    # only re-weight the dense pool (legacy, retained for ablation).
+    if FUSION_METHOD == "union_rrf":
+        return _fuse_union_rrf(query, hits, pool_size, return_k)
 
     # BM25 — keyword/IDF scoring, normalized per-query to [0, 1]. Always computed.
     bm25_all = _bm25_scores_for_query(query)
