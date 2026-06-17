@@ -41,10 +41,13 @@ QDRANT_SPARSE_COLLECTION=asylum_cases_nim2048_full_sparse
 CONFIDENCE_ENABLED=true
 # already set: UNION_TOPK=100, RRF_K=60
 ```
-Verify via `/health`: `bm25_backend=qdrant`, `confidence_enabled=true`. Note: the L-6 CE + Qdrant/bm25
-models download from HuggingFace on first use (~one-time cold-start cost); pre-bake into the image or
-pre-warm to avoid first-query latency. Headroom is ~28 MB — fine for a single-user demo; thin for
-concurrent production.
+Verify via `/health`: `bm25_backend=qdrant`, `confidence_enabled=true`. The L-6 CE + Qdrant/bm25 models
+are **pre-baked into the Docker image** (`ENV FASTEMBED_CACHE_PATH=/app/.fastembed_cache` + a build-time
+`RUN`, ~88 MB on disk) so there is **no first-query HuggingFace download** and no runtime HF dependency.
+(Optional hardening: set `HF_HUB_OFFLINE=1` at runtime to forbid HF calls entirely — requires every CE/
+BM25 model in use to be baked; don't set it globally if other paths fetch from HF.) Pre-baked weights
+sit on disk and load into RAM only when the feature is on, so they don't affect the 484 MB peak.
+Headroom is ~28 MB — fine for a single-user demo; thin for concurrent production.
 
 ## Enabling-for-real gate (before relying on it beyond the demo)
 The 62.5% catch + the calibration rest on **105 mostly-synthetic adversaries** (fantasy queries:
