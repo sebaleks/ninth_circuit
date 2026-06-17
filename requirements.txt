@@ -28,3 +28,4 @@ rank-bm25==0.2.2
 sentence-transformers>=3.0,<4.0
 qdrant-client==1.12.1
 onnxruntime==1.26.0   # torch-free e5 inference path (rag_api.onnx_embedder); tokenizers comes via transformers
+fastembed==0.8.0      # torch-free ONNX cross-encoder (confidence indicator) + Qdrant/bm25 sparse (Path B); imported lazily, only when the feature is on
