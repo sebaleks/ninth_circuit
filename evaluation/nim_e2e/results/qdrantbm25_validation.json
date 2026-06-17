@@ -1,0 +1,62 @@
+{
+  "corpus": "asylum_cases_nim2048_full",
+  "pool": 100,
+  "prior_rank_bm25_2k": {
+    "citation_recall": 0.96,
+    "named_authority_recall": 0.21,
+    "thematic_recall": 0.526
+  },
+  "config": {
+    "dense_only": {
+      "thematic": {
+        "recall": 0.245,
+        "mrr": 0.5667,
+        "ndcg": 0.3491
+      },
+      "citation": {
+        "recall": 0.1333,
+        "mrr": 0.083,
+        "ndcg": 0.0918
+      },
+      "named_authority": {
+        "recall": 0.0445,
+        "mrr": 0.3003,
+        "ndcg": 0.15
+      }
+    },
+    "union_rank_bm25": {
+      "thematic": {
+        "recall": 0.278,
+        "mrr": 0.6101,
+        "ndcg": 0.3769
+      },
+      "citation": {
+        "recall": 0.9067,
+        "mrr": 0.4509,
+        "ndcg": 0.5599
+      },
+      "named_authority": {
+        "recall": 0.1058,
+        "mrr": 0.4255,
+        "ndcg": 0.239
+      }
+    },
+    "union_qdrant_bm25": {
+      "thematic": {
+        "recall": 0.2776,
+        "mrr": 0.5367,
+        "ndcg": 0.3592
+      },
+      "citation": {
+        "recall": 0.9867,
+        "mrr": 0.5204,
+        "ndcg": 0.6369
+      },
+      "named_authority": {
+        "recall": 0.11,
+        "mrr": 0.4426,
+        "ndcg": 0.2534
+      }
+    }
+  }
+}
