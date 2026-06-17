@@ -70,15 +70,17 @@ def test_chat_request_validation():
 
 
 def test_citation_accepts_extra_fields():
-    """Hits dicts include `dense_score` which Citation should silently ignore."""
+    """Hit dicts carry `dense_score` (now surfaced) plus genuinely-extra keys (dropped)."""
     from rag_api.models import Citation
     hit = {
         "chunk_id": 1, "case_link": "https://x", "snippet": "...", "page": 1,
-        "score": 0.5, "dense_score": 0.3,
+        "score": 0.5, "dense_score": 0.3, "bm25_score": 0.9,  # bm25_score is a true extra
     }
     c = Citation(**hit)
     assert c.score == 0.5
-    assert not hasattr(c, "dense_score")  # extra silently dropped
+    assert c.dense_score == 0.3            # now a real field — surfaced to the client
+    assert c.confidence is None            # absent unless the confidence feature populates it
+    assert not hasattr(c, "bm25_score")    # genuinely-extra key still silently dropped
 
 
 # ── Retrieval with mocked FAISS + NVIDIA ────────────────────────────────────

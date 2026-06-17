@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from rag_api import generation, guardrails, nvidia_client, retrieval, timing
+from rag_api import cross_encoder, generation, guardrails, nvidia_client, retrieval, timing
 from rag_api.models import (
     ChatRequest,
     ChatResponse,
@@ -97,16 +97,27 @@ def search(req: SearchRequest, include_timings: bool = False) -> SearchResponse:
             hits = retrieval.search_with_rerank(req.query, fetch_k=max(20, req.k * 2), return_k=req.k)
         except Exception as e:  # noqa: BLE001
             raise HTTPException(status_code=502, detail=f"upstream error: {e}") from e
-        latency_ms = int((time.perf_counter() - t0) * 1000)
 
         # Apply the same dense-score refusal threshold as /chat so out-of-corpus
         # queries don't return noise. The dense score is more uniformly
         # calibrated than the rerank sigmoid.
         if guardrails.should_refuse([h.get("dense_score", h["score"]) for h in hits]):
+            latency_ms = int((time.perf_counter() - t0) * 1000)
             report = _finalize(t, t0, "search")
             return SearchResponse(hits=[], latency_ms=latency_ms, refused=True,
                                   timings=report if include_timings else None)
 
+        # Confidence indicator (demo feature, env-gated). Annotates each surviving hit with
+        # dense_score + ce_score + a green/yellow/red confidence. Never breaks search: a CE
+        # failure (e.g. model fetch) falls through to an un-annotated response.
+        if cross_encoder.enabled():
+            try:
+                with timing.timer("confidence_ce"):
+                    cross_encoder.annotate(req.query, hits)
+            except Exception:  # noqa: BLE001 — confidence is additive; degrade gracefully
+                pass
+
+        latency_ms = int((time.perf_counter() - t0) * 1000)
         report = _finalize(t, t0, "search")
         return SearchResponse(
             hits=[Citation(**h) for h in hits],

@@ -17,6 +17,13 @@ class SearchRequest(BaseModel):
     k: int = Field(10, ge=1, le=50)
 
 
+class Confidence(BaseModel):
+    """Per-result demo indicator of query↔case-text match (NOT legal relevance)."""
+    color: str   # "green" | "yellow" | "red"
+    label: str   # "Strong match" | "Moderate match" | "Weak match"
+    tooltip: str
+
+
 class Citation(BaseModel):
     chunk_id: int
     case_link: str
@@ -25,6 +32,13 @@ class Citation(BaseModel):
     score: float
     case_pub_status: str = ""
     case_disposition: str = ""
+    # Confidence-indicator fields (populated only when CONFIDENCE_ENABLED; omitted
+    # otherwise via response_model_exclude_none, so existing clients are unaffected).
+    # dense_score is the dense cosine — the meaningful relevance signal to SHOW the
+    # user (the top-level `score` is the union-RRF rank score, ~0.03, not a relevance %).
+    dense_score: float | None = None
+    ce_score: float | None = None        # L-6 cross-encoder score; null if the CE didn't fire
+    confidence: Confidence | None = None
 
 
 class ChatResponse(BaseModel):
