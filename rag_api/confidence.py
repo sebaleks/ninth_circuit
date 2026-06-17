@@ -9,13 +9,16 @@ Two signals, each scored 2/1/0 (High/Med/Low) via calibrated cutoffs, then summe
     sum == 2 → YELLOW  (MM, HL, LH)
     sum <= 1 → RED     (ML, LM, LL)
 
-Calibration (jina-reranker-v1-tiny-en CE; abstention probe set — see
-evaluation/nim_e2e/results/ABSTENTION_CROSSENCODER_FINDINGS.md):
+Calibration (ms-marco-MiniLM-L-6-v2 CE @ top-5; abstention probe set — see
+evaluation/nim_e2e/results/CONFIDENCE_MEMORY_FINDINGS.md for the L-6 memory/model decision and
+ABSTENTION_CROSSENCODER_FINDINGS.md for the eval):
   DENSE cosine — off-topic ≤0.147, in-corpus p05=0.264 / p25=0.325 / median=0.366, bulk 0.33–0.56.
-  CE (jina-tiny) — in-corpus median 2.07 (p05=1.58), out_vocab median 1.25.
-CONSERVATIVE LOW-END: CE M/L = 1.30 < the DV anchor (a real DV query the CE under-scored at 1.47),
-so that real-but-CE-underscored passage lands Med, not Low → with its High dense it is GREEN, and
-in no case can a single CE error alone push a real result to RED. Under-warn over over-warn.
+  CE (L-6) — in-corpus in-band median ~5.7 (p25=3.70), out_vocab in-band p50=1.05 / p90=3.47.
+CONSERVATIVE LOW-END: CE M/L = 0.80 < the DV anchor (a real DV query the L-6 CE under-scored at
+1.00), so that real-but-CE-underscored passage lands Med, not Low → with its High dense it is GREEN,
+and in no case can a single CE error alone push a real result to RED. Under-warn over over-warn.
+(L-6 chosen over the eval's jina-tiny on memory: jina-tiny OOMs the 512 MB box; L-6 @ top-5 fits at
+475 MB and catches 62.5% of out_vocab. Cutoffs are L-6-specific — they do NOT transfer across CE models.)
 
 CE fires only on the dense BAND [0.15, 0.50], non-lookup traffic (the uncertain middle); dense<0.15
 is the abstention floor (refused, no color), dense>0.50 is confident (dense alone), and docket/cite
@@ -24,9 +27,9 @@ is the abstention floor (refused, no color), dense>0.50 is confident (dense alon
 from __future__ import annotations
 import re
 
-# ── calibrated cutoffs (model-specific to jina-reranker-v1-tiny-en) ──
+# ── calibrated cutoffs (model-specific to ms-marco-MiniLM-L-6-v2 @ top-5) ──
 DENSE_HM, DENSE_ML = 0.33, 0.15      # dense: High≥0.33, Med[0.15,0.33), Low<0.15
-CE_HM, CE_ML = 1.80, 1.30            # CE:    High≥1.80, Med[1.30,1.80), Low<1.30
+CE_HM, CE_ML = 3.70, 0.80            # L-6 CE: High≥3.70, Med[0.80,3.70), Low<0.80
 BAND_LO, BAND_HI = 0.15, 0.50        # CE adjudicates only this dense band
 
 GREEN, YELLOW, RED = "green", "yellow", "red"

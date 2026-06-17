@@ -52,3 +52,21 @@ top-5 (475 MB, validated, 62.5%)** or **L-12 @ top-3 (485 MB, 71.9%, batch needs
 (snippets from Qdrant), (3) onnxruntime threads=1 + arena off, (4) CE batch capped (top-k passages).
 Headroom is ~30–40 MB — fine for a single-user demo; thin for concurrent production (the enabling-
 for-real gate). Bigger instance (Render Standard 2 GB) removes all of this and allows any model @ top-5.
+
+## Calibration (L-6 @ top-5) — the six cutoffs + anchors
+| signal | High ≥ | Med ≥ (M/L) | Low < | basis |
+|---|---|---|---|---|
+| dense cosine | **0.33** | **0.15** | 0.15 | in-corpus p25=0.325; off-topic ≤0.147 (abstention floor) |
+| CE (L-6) | **3.70** | **0.80** | 0.80 | in-corpus in-band p25=3.70; M/L=0.80 < DV anchor 1.00 (conservative low-end) |
+
+Band [0.15, 0.50]; docket/cite lookups route around the CE. Color = 2-of-2 sum (≥3 green / 2 yellow / ≤1 red).
+
+**Anchor cases:** real-strong (d0.50/ce5.7)→GREEN · **DV under-scored (d0.462/ce1.00)→GREEN** (ce≥0.80=Med
++ dense High = sum 3, protected) · out_vocab caught (d0.43/ce−1.5)→YELLOW · weak-dense nonsense
+(d0.28/ce−1.5)→RED · off-topic (d<0.15)→abstained.
+
+**Validation on the probe set (color applied to every probe):** in_thematic 16/16 GREEN · in_edge 15/16
+green/yellow (the 1 "red" is `MPP standing` d0.117 — abstained below the floor, never shown) · in_lookup
+27/27 green/yellow · out_clear 14/14 RED · out_vocab **17/32 (53%) pulled to yellow/red**; the 15 that stay
+green are the elaborate disguised-fiction adversaries (vampire/merfolk/Wakanda/mock-opinion language) —
+L-6's known ceiling. **No real in-corpus query displays RED.** Under-warn over over-warn, as specified.

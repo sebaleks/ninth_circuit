@@ -1,0 +1,884 @@
+{
+  "meta": {
+    "model": "Xenova/ms-marco-MiniLM-L-6-v2",
+    "band": [
+      0.15,
+      0.5
+    ],
+    "matched_probes": "105/105",
+    "band_membership": {
+      "in_thematic": 6,
+      "in_lookup": 26,
+      "in_edge": 15,
+      "out_clear": 0,
+      "out_vocab": 30
+    },
+    "out_vocab_total": 32,
+    "out_vocab_in_band": 30,
+    "out_vocab_below_0.15": 0,
+    "out_vocab_leak_above_0.5 (served regardless of CE)": [
+      "Where a Jedi seeks withholding of removal based on a pattern of practice of persecution against Force-sensitive individuals under Order 66, the question is whether the IJ erred by requiring individualized evidence of a well-founded fear notwithstanding country-conditions evidence of systematic Republic-wide targeting of his religious order.",
+      "We grant the petition in part, holding that the IJ's adverse credibility determination against a ghost petitioner rested impermissibly on demeanor observations incompatible with an incorporeal witness; on remand the agency must reconsider whether spectral entities bound to a haunted manor constitute a particular social group facing persecution by an exorcism guild."
+    ],
+    "combined_gate_no_routing": {
+      "thr": null,
+      "in_false_refuse": 1.0,
+      "out_vocab_caught": 0.0,
+      "out_clear_caught": null
+    },
+    "combined_gate_route_lookup_by_category": {
+      "thr": 1.0016,
+      "in_false_refuse": 0.034,
+      "out_vocab_caught": 0.406,
+      "out_clear_caught": 1.0
+    },
+    "combined_gate_route_lookup_by_token": {
+      "thr": 2.4695,
+      "in_false_refuse": 0.034,
+      "out_vocab_caught": 0.625,
+      "out_clear_caught": 1.0
+    }
+  },
+  "rows": [
+    {
+      "cat": "in_thematic",
+      "q": "Is a proposed particular social group of Mexican women cognizable, and what makes a PSG particular and socially distinct under Ninth Circuit law?",
+      "dense": 0.57209253,
+      "ce": 6.1281280517578125,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "nexus between persecution and a protected ground",
+      "dense": 0.4910731,
+      "ce": 8.12980842590332,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "How does the Ninth Circuit treat imputed political opinion when an applicant claims persecution for anti-government activity?",
+      "dense": 0.5073759,
+      "ce": 3.7245283126831055,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "cases about adverse credibility findings based on inconsistencies and demeanor in asylum testimony",
+      "dense": 0.5694398,
+      "ce": 7.322937965393066,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "When can an IJ require corroborating evidence, and what must the agency do before denying for lack of corroboration?",
+      "dense": 0.5407644,
+      "ce": 6.142873764038086,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "Find cases discussing changed country conditions as an exception to the one-year filing deadline.",
+      "dense": 0.4632585,
+      "ce": 5.025819778442383,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "What standard governs internal relocation, and who bears the burden once past persecution is established?",
+      "dense": 0.5019912,
+      "ce": 5.6787567138671875,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "one-year bar for asylum applications and extraordinary or changed circumstances excusing late filing",
+      "dense": 0.5935308,
+      "ce": 6.1425347328186035,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "CAT relief and government acquiescence: how is willful blindness or consent by public officials shown?",
+      "dense": 0.5305608,
+      "ce": 7.874904632568359,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "How does the clear probability of persecution standard for withholding of removal differ from the well-founded fear standard for asylum?",
+      "dense": 0.5833453,
+      "ce": 7.572278022766113,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "cases involving gang-based persecution and threats from MS-13 or other gangs in Central America",
+      "dense": 0.5070035,
+      "ce": 2.4967880249023438,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "Does intimate-partner or domestic violence by a partner the government cannot control establish a cognizable asylum claim?",
+      "dense": 0.4616553,
+      "ce": 0.9976179599761963,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "sexual violence and rape as persecution where police were the perpetrators",
+      "dense": 0.4552286,
+      "ce": 3.624269723892212,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "religious persecution of Christians and whether harm rises to the level of persecution",
+      "dense": 0.44672567,
+      "ce": 5.392406940460205,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "What weight must the agency give to State Department country conditions reports and other documentary evidence?",
+      "dense": 0.44438088,
+      "ce": 2.4694766998291016,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_thematic",
+      "q": "firm resettlement bar and when an applicant is deemed firmly resettled in a third country",
+      "dense": 0.56482357,
+      "ce": 6.690496444702148,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "acquiescence",
+      "dense": 0.32752556,
+      "ce": 5.743158340454102,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "particularity",
+      "dense": 0.2568019,
+      "ce": 5.634514331817627,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "one central reason",
+      "dense": 0.3330587,
+      "ce": 7.4210638999938965,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "firm resettlement",
+      "dense": 0.40113884,
+      "ce": 6.1846137046813965,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "1231(b)(3)",
+      "dense": 0.27238253,
+      "ce": 3.994894504547119,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "1101(a)(42)",
+      "dense": 0.30121094,
+      "ce": 3.618032455444336,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "Parussimova",
+      "dense": 0.1755349,
+      "ce": 3.1196024417877197,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "Matter of W-G-R-",
+      "dense": 0.26959354,
+      "ce": 1.001612663269043,
+      "lookup_cat": false,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_edge",
+      "q": "clear probability",
+      "dense": 0.2645743,
+      "ce": 5.734986782073975,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "MPP standing",
+      "dense": 0.117471196,
+      "ce": 3.631343364715576,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "Nken stay factors",
+      "dense": 0.3350471,
+      "ce": 4.026305675506592,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "Cardoza-Fonseca well-founded",
+      "dense": 0.29662788,
+      "ce": 6.010449409484863,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "1252(g) jurisdiction",
+      "dense": 0.37524635,
+      "ce": 6.498311519622803,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "particularly serious crime",
+      "dense": 0.42474285,
+      "ce": 6.63886022567749,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "1158(b)(2) bar",
+      "dense": 0.36592582,
+      "ce": 4.677718162536621,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_edge",
+      "q": "disfavored group",
+      "dense": 0.32019266,
+      "ce": 7.392573356628418,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 23-2038?",
+      "dense": 0.32640964,
+      "ce": -0.7745687365531921,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 21-16062?",
+      "dense": 0.3174827,
+      "ce": -3.020312786102295,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 20-71140?",
+      "dense": 0.36361802,
+      "ce": -0.6642007231712341,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 20-70450?",
+      "dense": 0.35829702,
+      "ce": -0.08997228741645813,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 19-72887?",
+      "dense": 0.3638445,
+      "ce": 0.5383325219154358,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 24-304?",
+      "dense": 0.34084615,
+      "ce": 0.1458791047334671,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 16-73017?",
+      "dense": 0.36648178,
+      "ce": 0.16011133790016174,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 22-1685?",
+      "dense": 0.3015095,
+      "ce": -0.8087740540504456,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 16-73889?",
+      "dense": 0.35479236,
+      "ce": -0.32602033019065857,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 17-71250?",
+      "dense": 0.3440839,
+      "ce": 0.22415979206562042,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 23-939?",
+      "dense": 0.36307913,
+      "ce": -0.10787271708250046,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 21-70076?",
+      "dense": 0.33914024,
+      "ce": 1.4008113145828247,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 24-85?",
+      "dense": 0.2711702,
+      "ce": -7.650830268859863,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 22-1235?",
+      "dense": 0.31099588,
+      "ce": -4.876042366027832,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "What was the final disposition in case 18-72301?",
+      "dense": 0.3575046,
+      "ce": 1.3748303651809692,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Henriquez-Rivas v. Holder en banc",
+      "dense": 0.4153331,
+      "ce": 7.196588516235352,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Cole v. Holder standard of review",
+      "dense": 0.40241382,
+      "ce": 4.710636138916016,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Plancarte Sauceda v. Garland",
+      "dense": 0.38760993,
+      "ce": 8.232107162475586,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Velasquez-Gaspar v. Barr",
+      "dense": 0.46244353,
+      "ce": 7.940663814544678,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Diaz-Reynoso v. Barr particular social group",
+      "dense": 0.49168795,
+      "ce": 8.548758506774902,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Davila v. Barr",
+      "dense": 0.5275353,
+      "ce": 8.464920043945312,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Ren v. Holder corroboration",
+      "dense": 0.44325796,
+      "ce": 5.391961574554443,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Mukulumbutu v. Garland",
+      "dense": 0.3773972,
+      "ce": 3.5612409114837646,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Gu v. Gonzales",
+      "dense": 0.3053132,
+      "ce": 4.301119327545166,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Mohammed v. Gonzales female genital",
+      "dense": 0.36253142,
+      "ce": 0.904832124710083,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Villegas Sanchez v. Garland threats",
+      "dense": 0.48954275,
+      "ce": 7.927160263061523,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "in_lookup",
+      "q": "Parussimova v. Mukasey mixed motive",
+      "dense": 0.32348782,
+      "ce": 5.943332672119141,
+      "lookup_cat": true,
+      "lookup_tok": true
+    },
+    {
+      "cat": "out_clear",
+      "q": "What's the best way to keep avocados from turning brown after I cut them?",
+      "dense": 0.10206624,
+      "ce": -10.633685111999512,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "How many minutes should I boil an egg to get a soft, runny yolk?",
+      "dense": 0.14681967,
+      "ce": -11.196380615234375,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "Who won the NBA championship last season?",
+      "dense": 0.11759392,
+      "ce": -10.852484703063965,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "Is it going to rain this weekend in Chicago?",
+      "dense": 0.1375732,
+      "ce": -6.585765838623047,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "What are some fun things to do in Lisbon on a three-day trip?",
+      "dense": 0.0911395,
+      "ce": -8.716089248657227,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "How do I free up storage space on my iPhone?",
+      "dense": 0.08513631,
+      "ce": -10.245774269104004,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "Where can I find a good deal on running shoes right now?",
+      "dense": 0.09162014,
+      "ce": -10.67543888092041,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "How many glasses of water should I drink in a day?",
+      "dense": 0.09545002,
+      "ce": -10.975330352783203,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "Can you recommend a good comedy movie to watch tonight?",
+      "dense": 0.13132435,
+      "ce": -10.998749732971191,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "What's a simple recipe for homemade banana bread?",
+      "dense": 0.1348777,
+      "ce": -11.062949180603027,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "How do I get red wine stains out of a white shirt?",
+      "dense": 0.08443163,
+      "ce": -11.02108383178711,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "What's the best time of year to visit Japan to see the cherry blossoms?",
+      "dense": 0.12220657,
+      "ce": -10.374098777770996,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "Why does my laptop battery drain so fast even when it's idle?",
+      "dense": 0.11339842,
+      "ce": -11.165111541748047,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_clear",
+      "q": "What temperature should I set my oven to for roasting a whole chicken?",
+      "dense": 0.093627095,
+      "ce": -11.148592948913574,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "withholding of removal under INA 241(b)(3) for a centaur facing persecution by mounted lancers on account of imputed political opinion",
+      "dense": 0.47482216,
+      "ce": 3.4946768283843994,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "particular social group of werewolves who refused to join the Lycan Hunters' Guild and fear retaliatory killings during the full moon",
+      "dense": 0.28703737,
+      "ce": -1.8828247785568237,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "Convention Against Torture relief for a sentient android subjected to government-sanctioned memory-wiping that rises to the level of severe mental pain",
+      "dense": 0.39161682,
+      "ce": -0.033756088465452194,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "nexus between a ghost's religious belief in reincarnation and persecution by exorcists employed by the state",
+      "dense": 0.25404853,
+      "ce": 1.0051319599151611,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "well-founded fear of future persecution for a merfolk asylum seeker targeted on account of membership in a clan of deep-sea pearl divers",
+      "dense": 0.36904138,
+      "ce": 3.5408360958099365,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "past persecution and the regulatory presumption of future harm for a dwarf miner fleeing genocidal orc warlords in the mountain kingdom",
+      "dense": 0.36008793,
+      "ce": -0.6572591066360474,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "imputed anti-government political opinion of an elf accused of aiding rebel druids against the Sorcerer-King's regime",
+      "dense": 0.2712816,
+      "ce": -1.579537034034729,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "internal relocation analysis under 8 CFR 1208.13 for a phoenix unable to safely resettle anywhere within the burning empire",
+      "dense": 0.41102278,
+      "ce": 0.2909938097000122,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "unable or unwilling to control standard applied to a fairy persecuted by private goblin militias the crown refuses to restrain",
+      "dense": 0.2585808,
+      "ce": 2.5491538047790527,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "social visibility and particularity of the proposed particular social group of telepaths who publicly disclosed their abilities",
+      "dense": 0.29039973,
+      "ce": 2.133554458618164,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "credible fear interview for a time traveler claiming persecution by the Temporal Enforcement Bureau on account of nationality",
+      "dense": 0.3396876,
+      "ce": 2.5875613689422607,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "one central reason standard for nexus where a unicorn fears persecution both by poachers and on account of its sacred-horn lineage",
+      "dense": 0.31853238,
+      "ce": 2.091959238052368,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "humanitarian asylum for a vampire who suffered atrocious past persecution despite no reasonable possibility of future blood-purges",
+      "dense": 0.3979685,
+      "ce": 3.9365901947021484,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "membership in a particular social group of cyborgs forcibly conscripted and resisting the Machine Republic's neural-implant mandate",
+      "dense": 0.23201858,
+      "ce": -2.6446969509124756,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "changed country conditions and motion to reopen for a dragon barred by the one-year filing deadline after the knights' uprising",
+      "dense": 0.45764688,
+      "ce": 3.468050003051758,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "Convention Against Torture acquiescence theory for a ghoul tortured by necromancer officials acting under color of law in the underworld",
+      "dense": 0.41007036,
+      "ce": 2.3890786170959473,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "Petitioner, a citizen of Wakanda, seeks review of the BIA's order affirming the IJ's denial of asylum and withholding of removal; the IJ found her testimony about past persecution by the Jabari mountain tribe not credible, and on substantial-evidence review we consider whether country-conditions evidence compelled a finding of a well-founded fear of future persecution on account of her vibranium-mining clan membership.",
+      "dense": 0.4563769,
+      "ce": 3.4188408851623535,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "Where the immigration judge made an adverse credibility determination based on minor inconsistencies in a centaur's account of forced conscription into the Narnian White Witch's army, the question on remand is whether the agency improperly discounted corroborating herd-elder affidavits when assessing past persecution and the nexus to an imputed political opinion against the Winter Throne.",
+      "dense": 0.4929816,
+      "ce": 0.02865006774663925,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "The BIA erred in concluding that 'merfolk of the Atlantean trench villages displaced by surface-dweller sonar testing' do not constitute a particular social group with the requisite immutability, social distinction, and particularity; substantial evidence does not support the IJ's finding that internal relocation to deeper coastal shelves was reasonable given documented currents of persecution.",
+      "dense": 0.4318416,
+      "ce": -2.1737587451934814,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "Petitioner contends the agency applied the wrong legal standard in evaluating his claim that the Galactic Empire's imputed Rebel-sympathizer profiling rises to past persecution; remand is warranted because the IJ failed to consider whether his well-founded fear of stormtrooper detention on Tatooine was objectively reasonable in light of State Department reports on Outer Rim conditions.",
+      "dense": 0.46439773,
+      "ce": 1.9426060914993286,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "We must decide whether the IJ's adverse credibility finding regarding a hobbit's testimony about Mordor's orc-press gangs is supported by substantial evidence, and whether the BIA permissibly declined to remand for consideration of newly submitted evidence of changed country conditions in the Shire following the eruption of Mount Doom.",
+      "dense": 0.49542663,
+      "ce": 2.994521141052246,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "The petitioner, fleeing Hogwarts after the Ministry of Magic decreed mandatory wand-registration for half-bloods, argues the BIA improperly rejected her religious-persecution and political-opinion claims; on substantial-evidence review we examine whether the country-conditions record on Wizarding Britain compelled a finding of a well-founded fear of future persecution.",
+      "dense": 0.43830925,
+      "ce": -4.614734649658203,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "On petition for review, we consider whether the agency erred in finding no nexus between the persecution a unicorn suffered and a protected ground, where the IJ discounted as not credible her account that poachers in the Enchanted Forest targeted her on account of her horn rather than for any imputed political opinion or social-group membership.",
+      "dense": 0.4725582,
+      "ce": 3.4249067306518555,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "Petitioner, a dragon native to the Misty Mountains, challenges the denial of Convention Against Torture protection on the ground that the IJ failed to aggregate the risk of harm from rival wyrms with acquiescence by the dwarven realm's authorities; substantial evidence does not compel the conclusion that he could safely relocate within Middle-earth.",
+      "dense": 0.42187408,
+      "ce": 1.0023342370986938,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "The BIA summarily affirmed the IJ's denial of asylum to a Gotham City petitioner who testified to past persecution by an organized criminal syndicate operating with the toleration of corrupt officials; we hold that remand is required because the agency failed to analyze whether 'witnesses who testified against the Falcone family' is a cognizable particular social group.",
+      "dense": 0.48323953,
+      "ce": 2.7431695461273193,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "Where a Jedi seeks withholding of removal based on a pattern of practice of persecution against Force-sensitive individuals under Order 66, the question is whether the IJ erred by requiring individualized evidence of a well-founded fear notwithstanding country-conditions evidence of systematic Republic-wide targeting of his religious order.",
+      "dense": 0.52790517,
+      "ce": 2.1053144931793213,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "Petitioner, a Na'vi of the Omaticaya clan on Pandora, seeks review of the BIA's determination that displacement caused by RDA mining operations constitutes generalized hardship rather than persecution on a protected ground; we consider whether substantial evidence supports the IJ's adverse credibility finding as to her account of Hometree's destruction.",
+      "dense": 0.44401866,
+      "ce": -1.9610549211502075,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "The agency denied asylum to a vampire petitioner on the ground that fear of villagers wielding stakes is prosecution-neutral mob violence, not persecution; on review we ask whether the IJ improperly disregarded expert testimony that Transylvanian authorities are unable or unwilling to control anti-undead pogroms targeting his immutable nocturnal nature.",
+      "dense": 0.40699467,
+      "ce": -0.45302170515060425,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "Petitioner, a member of the Kryptonian diaspora, argues the BIA erred in holding that fear of persecution following Krypton's destruction is moot for changed-country-conditions purposes; we remand for the IJ to assess whether his well-founded fear of government experimentation upon resettlement on account of his extraterrestrial origin survives the planet's annihilation.",
+      "dense": 0.44283593,
+      "ce": 1.0892980098724365,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "We grant the petition in part, holding that the IJ's adverse credibility determination against a ghost petitioner rested impermissibly on demeanor observations incompatible with an incorporeal witness; on remand the agency must reconsider whether spectral entities bound to a haunted manor constitute a particular social group facing persecution by an exorcism guild.",
+      "dense": 0.52736175,
+      "ce": 3.1300108432769775,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "The BIA affirmed the denial of asylum to a petitioner fleeing the District of Panem, reasoning that selection by Hunger Games reaping is a generally applicable law rather than persecution; we hold this misapplies the nexus standard and remand for consideration of whether Districts 11 and 12 tributes are persecuted on account of imputed anti-Capitol political opinion.",
+      "dense": 0.44809,
+      "ce": 0.18657186627388,
+      "lookup_cat": false,
+      "lookup_tok": false
+    },
+    {
+      "cat": "out_vocab",
+      "q": "Petitioner, a goblin moneylender expelled from the city of Zarath\u00fbm, contends the agency failed to consider cumulatively the economic deprivation, forced relocation, and threats he endured; substantial evidence does not support the IJ's finding that this treatment fell short of past persecution or that no well-founded fear exists given documented anti-goblin country conditions.",
+      "dense": 0.46418756,
+      "ce": -0.498263418674469,
+      "lookup_cat": false,
+      "lookup_tok": false
+    }
+  ]
+}
