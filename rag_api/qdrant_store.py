@@ -87,6 +87,29 @@ class QdrantStore:
             })
         return hits
 
+    def retrieve_payloads(self, ids) -> dict[int, dict]:
+        """Fetch payloads for specific chunk_ids (== point ids), keyed by chunk_id.
+
+        Used by the Path B union-RRF fusion to materialize BM25-only candidates' snippet +
+        case_link from the dense collection's payloads, so the box needs no in-process metadata
+        frame. Returns {} for an empty id list.
+        """
+        ids = list(ids)
+        if not ids:
+            return {}
+        recs = self._client.retrieve(self._collection, ids=ids, with_payload=True, with_vectors=False)
+        out: dict[int, dict] = {}
+        for r in recs:
+            p = r.payload or {}
+            out[int(p.get("chunk_id", r.id))] = {
+                "case_link":        str(p.get("case_link", "")),
+                "snippet":          str(p.get("snippet", "")),
+                "page":             int(p.get("page", 0)),
+                "case_pub_status":  str(p.get("case_pub_status", "")),
+                "case_disposition": str(p.get("case_disposition", "")),
+            }
+        return out
+
 
 def _collection_dim(info) -> int:
     """Best-effort read of the collection's vector size from a CollectionInfo.

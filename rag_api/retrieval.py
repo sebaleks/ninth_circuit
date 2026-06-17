@@ -9,12 +9,15 @@ import sys
 from pathlib import Path
 from typing import Protocol
 
-import faiss  # type: ignore
 import numpy as np
-import pandas as pd
-from rank_bm25 import BM25Okapi
 
 from rag_api import nvidia_client, timing
+
+# faiss, rank_bm25, and pandas are imported LAZILY (faiss in FaissStore.from_index_dir; rank_bm25
+# in _ensure_bm25; pandas in load() only when META is read). In the qdrant + BM25-off-box (Path B)
+# deployment NONE of them is used at runtime, and together they inflate peak RSS by ~190 MB —
+# the headroom the cross-encoder needs to fit the 512 MB box. `from __future__ import annotations`
+# keeps the faiss.Index / BM25Okapi / pd.DataFrame type hints valid without importing them here.
 
 # Resolve from repo root regardless of cwd
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -41,6 +44,9 @@ NIM_QUERY_DIM: int | None = None
 # concrete store selected from config.json (FaissStore today; a QdrantStore
 # is the planned successor — see VectorStore below).
 STORE: "VectorStore | None" = None
+# Sparse BM25 retriever for Path B (BM25_BACKEND=qdrant): BM25 runs off-box in Qdrant, so the
+# box loads neither the in-memory rank_bm25 index nor the metadata parquet. None → in-memory.
+SPARSE_STORE = None
 _BM25: BM25Okapi | None = None
 _BM25_META_ID: int | None = None  # id(META) at the time BM25 was built; for invalidation
 
@@ -65,6 +71,10 @@ HYBRID_ALPHA = 0.6
 #                  "rrf" → reciprocal-rank fusion of semantic + BM25 over the pool.
 USE_RERANKER = True
 FUSION_METHOD = "union_rrf"
+# BM25 backend: "memory" (in-process rank_bm25 over META, default) or "qdrant" (Path B — sparse
+# vectors served off-box). Path B drops both the in-memory index and META from the box; BM25-only
+# union-RRF candidates are materialized from the dense collection's payloads. Read in load().
+BM25_BACKEND = "memory"
 RRF_K = 60  # reciprocal-rank-fusion constant (env RRF_K; re-read in load()). Standard default.
 # Per-retriever depth for union-RRF: dense AND BM25 each fetch their own top-UNION_TOPK before
 # fusing (env UNION_TOPK; re-read in load()). 100 reproduced the validated lifts (thematic
@@ -141,6 +151,8 @@ class FaissStore:
         `meta` is passed in (not read here) because load() also feeds it to BM25;
         reading the parquet once keeps a single source of truth for the corpus.
         """
+        import faiss  # lazy: only the faiss backend needs the library (see top-of-module note)
+
         index_path = index_dir / "index.faiss"
         if not index_path.exists():
             raise FileNotFoundError(
@@ -227,6 +239,7 @@ def _ensure_bm25() -> BM25Okapi | None:
     if not any(corpus_tokens):
         _BM25 = None  # degenerate; scoring will return zeros
     else:
+        from rank_bm25 import BM25Okapi  # lazy: only the in-memory BM25 backend needs it
         _BM25 = BM25Okapi(corpus_tokens)
     _BM25_META_ID = id(META)
     return _BM25
@@ -285,18 +298,28 @@ def load() -> None:
     config.json. The embedder is chosen from config.json so query-time embedding
     matches how the index was built; reranker and generation stay on NIM.
     """
-    global INDEX, META, EMBEDDER, STORE, NIM_QUERY_DIM, USE_RERANKER, FUSION_METHOD, RRF_K, UNION_TOPK
+    global INDEX, META, EMBEDDER, STORE, SPARSE_STORE, NIM_QUERY_DIM
+    global USE_RERANKER, FUSION_METHOD, RRF_K, UNION_TOPK, BM25_BACKEND
     index_dir = _index_dir()
     meta_path = index_dir / "metadata.parquet"
     config_path = index_dir / "config.json"
-    if not meta_path.exists():
-        raise FileNotFoundError(f"Missing {meta_path} — run `python pipeline/rag_ingest.py` first")
-    # META is the shared corpus — it feeds the metadata join (faiss) AND the local
-    # BM25 path in BOTH backends, so it's loaded regardless of VECTOR_STORE.
-    META = pd.read_parquet(meta_path)
+
+    backend = os.environ.get("VECTOR_STORE", "faiss").lower()
+    BM25_BACKEND = os.environ.get("BM25_BACKEND", "memory").strip().lower()
+
+    # META feeds the faiss metadata join AND the in-memory BM25 corpus. Path B (qdrant store +
+    # qdrant BM25) needs neither — BM25-only union candidates are materialized from the dense
+    # collection's payloads — so it skips the ~295 MB parquet load (the headroom the CE needs).
+    need_meta = (backend == "faiss") or (BM25_BACKEND == "memory")
+    if need_meta:
+        if not meta_path.exists():
+            raise FileNotFoundError(f"Missing {meta_path} — run `python pipeline/rag_ingest.py` first")
+        import pandas as pd  # lazy: pandas is only needed when META is actually loaded
+        META = pd.read_parquet(meta_path)
+    else:
+        META = None
 
     # Dense backend: VECTOR_STORE=faiss (default, in-process) or qdrant (remote).
-    backend = os.environ.get("VECTOR_STORE", "faiss").lower()
     if backend == "faiss":
         # FaissStore owns faiss.read_index and the size-mismatch check. INDEX stays
         # a module global as the raw artifact the default store wraps (and for the
@@ -311,14 +334,25 @@ def load() -> None:
     else:
         raise RuntimeError(f"Unknown VECTOR_STORE={backend!r}; use 'faiss' or 'qdrant'")
 
+    # BM25 backend: in-memory rank_bm25 (default) or off-box Qdrant sparse (Path B).
+    if BM25_BACKEND == "qdrant":
+        from rag_api.sparse_store import SparseBM25Store  # lazy
+        sparse_collection = os.environ.get("QDRANT_SPARSE_COLLECTION", "asylum_cases_sparse")
+        SPARSE_STORE = SparseBM25Store.from_env(sparse_collection)
+    elif BM25_BACKEND == "memory":
+        SPARSE_STORE = None
+    else:
+        raise RuntimeError(f"Unknown BM25_BACKEND={BM25_BACKEND!r}; use 'memory' or 'qdrant'")
+
     EMBEDDER, NIM_QUERY_DIM = _resolve_embedder(config_path, STORE.dim)
     # Retrieval knobs (env; defaults preserve T1). Read at startup, like VECTOR_STORE.
     USE_RERANKER = os.environ.get("USE_RERANKER", "true").strip().lower() != "false"
     FUSION_METHOD = os.environ.get("FUSION_METHOD", "union_rrf").strip().lower()
     RRF_K = int(os.environ.get("RRF_K", str(RRF_K)))
     UNION_TOPK = int(os.environ.get("UNION_TOPK", str(UNION_TOPK)))
-    # Pre-warm BM25 so the first query doesn't pay the build cost
-    _ensure_bm25()
+    # Pre-warm in-memory BM25 so the first query doesn't pay the build cost (Path B: nothing to warm).
+    if SPARSE_STORE is None:
+        _ensure_bm25()
 
 
 @timing.timed("embed")
@@ -433,7 +467,12 @@ def _bm25_topk(query: str, k: int) -> list[tuple[int, float]]:
     BM25 contribute its own candidates for union fusion — the lexical retriever surfaces
     exact-term matches (dockets, case names, statutes) that dense never pooled (measured:
     dense pools only ~20% of named-authority cases, ~39% of dockets).
+
+    Path B (SPARSE_STORE set): BM25 is served off-box by Qdrant — same (chunk_id, score) contract,
+    no in-process index or corpus.
     """
+    if SPARSE_STORE is not None:
+        return SPARSE_STORE.topk(query, k)
     bm25 = _ensure_bm25()
     tokens = _query_tokens(query)
     if bm25 is None or not tokens:
@@ -441,6 +480,30 @@ def _bm25_topk(query: str, k: int) -> list[tuple[int, float]]:
     raw = bm25.get_scores(tokens)
     order = np.argsort(-raw)[:k]
     return [(int(i), float(raw[i])) for i in order if raw[i] > 0]
+
+
+def _materialize_chunks(chunk_ids: list[int]) -> dict[int, dict]:
+    """case_link/snippet/page/… for BM25-only union candidates, keyed by chunk_id.
+
+    Memory backend: from the in-process META frame. Path B (META is None): from the dense Qdrant
+    collection's payloads via one batched retrieve, so the box needs no metadata frame at all.
+    """
+    if not chunk_ids:
+        return {}
+    if META is not None:
+        has_snippet = "snippet" in META.columns
+        out: dict[int, dict] = {}
+        for cid in chunk_ids:
+            row = META.iloc[cid]
+            out[cid] = {
+                "case_link": str(row["case_link"]),
+                "snippet": str(row["snippet"]) if has_snippet else str(row["text"])[:300],
+                "page": int(row.get("page", 0) or 0),
+                "case_pub_status": str(row.get("case_pub_status", "")),
+                "case_disposition": str(row.get("case_disposition", "")),
+            }
+        return out
+    return _store().retrieve_payloads(chunk_ids)
 
 
 def _fuse_union_rrf(query: str, dense_hits: list[dict], pool: int, return_k: int) -> list[dict]:
@@ -457,18 +520,22 @@ def _fuse_union_rrf(query: str, dense_hits: list[dict], pool: int, return_k: int
     bm25_top = _bm25_topk(query, pool)
     bm25_rank = {cid: r for r, (cid, _) in enumerate(bm25_top, start=1)}
     bm25_score = {cid: sc for cid, sc in bm25_top}
-    has_snippet = META is not None and "snippet" in META.columns
 
     hits = list(dense_hits)
     seen_ids = set(dense_rank)
-    for cid, _sc in bm25_top:
-        if cid in seen_ids:
-            continue
-        row = META.iloc[cid]
+    bm25_only = [cid for cid, _ in bm25_top if cid not in seen_ids]
+    materialized = _materialize_chunks(bm25_only)
+    for cid in bm25_only:
+        m = materialized.get(cid)
+        if m is None:
+            continue  # defensive: shared chunk_id space should always resolve
         hits.append({
             "chunk_id": cid,
-            "case_link": row["case_link"],
-            "snippet": row["snippet"] if has_snippet else str(row["text"])[:300],
+            "case_link": m["case_link"],
+            "snippet": m["snippet"],
+            "page": m.get("page", 0),
+            "case_pub_status": m.get("case_pub_status", ""),
+            "case_disposition": m.get("case_disposition", ""),
             "dense_score": 0.0,
         })
         seen_ids.add(cid)

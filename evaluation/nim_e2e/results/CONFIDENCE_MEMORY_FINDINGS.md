@@ -70,3 +70,27 @@ green/yellow (the 1 "red" is `MPP standing` d0.117 — abstained below the floor
 27/27 green/yellow · out_clear 14/14 RED · out_vocab **17/32 (53%) pulled to yellow/red**; the 15 that stay
 green are the elaborate disguised-fiction adversaries (vampire/merfolk/Wakanda/mock-opinion language) —
 L-6's known ceiling. **No real in-corpus query displays RED.** Under-warn over over-warn, as specified.
+
+## Path B implementation — real-app memory + latency (measured)
+Built: BM25→Qdrant sparse (`SparseBM25Store`), META off-box (BM25-only union candidates
+materialized from the dense collection's payloads via `QdrantStore.retrieve_payloads`), and
+lazy faiss/rank_bm25/**pandas** imports (all unused in qdrant Path B). Staged peak RSS of the
+REAL app (qdrant dense + qdrant BM25 + NIM embed client + L-6 CE @ top-5, CONFIDENCE_ENABLED):
+
+| stage | peak RSS |
+|---|---|
+| import retrieval (lazy pandas) | 71 MB |
+| load() Path B (META=None, sparse store) | 133 MB |
+| + 1 dense+sparse query | 148 MB |
+| **+ CE annotate (model load + inference)** | **484 MB** |
+
+**484 MB < 512** (28 MB headroom). Confirmed unloaded: torch, faiss, rank_bm25, transformers,
+pandas. Without the lazy-pandas trim it was 541 MB (over). Correctness verified end-to-end: the
+exact docket `23-2038` (dense missed it) is recovered by Qdrant BM25 and its snippet materialized
+from the dense payload → GREEN.
+
+**Latency correction:** Path B does NOT reduce end-to-end latency. Both paths are network-dominated
+(NIM embed + free-tier Qdrant ≈ 1 s); Path B actually ADDS a sparse query + a payload fetch (~300 ms)
+versus the local in-memory `BM25.get_scores` (the in-memory index builds ONCE at startup, cached, so
+it's fast per-query). **Path B's real justification is MEMORY — it's what frees the headroom for the
+CE — not latency.** CE adds ~120–240 ms on the band, non-lookup minority of queries only.
