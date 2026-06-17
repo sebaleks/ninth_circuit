@@ -468,6 +468,9 @@ def test_search_with_rerank_bm25_lifts_literal_matches(monkeypatch):
         nvidia_client, "rerank",
         lambda q, passages: [0.05, 0.02],
     )
+    # This test validates the BLEND path (rerank semantic signal + per-query-normalized
+    # BM25 re-weighting the dense pool). The default is now union_rrf, so pin blend here.
+    monkeypatch.setattr(retrieval, "FUSION_METHOD", "blend")
 
     hits = retrieval.search_with_rerank("Honduras", fetch_k=2, return_k=2)
     # BM25 contribution flips the order: B.pdf above A.pdf
@@ -478,6 +481,49 @@ def test_search_with_rerank_bm25_lifts_literal_matches(monkeypatch):
     assert "bm25_score" in hits[0]
     assert hits[0]["bm25_score"] == pytest.approx(1.0)  # normalized max
     assert hits[1]["bm25_score"] == pytest.approx(0.0)  # no "honduras"
+
+
+def test_search_with_rerank_union_rrf_surfaces_bm25_only_candidate(monkeypatch):
+    """union_rrf (default): BM25 retrieves its OWN candidates, so an exact-term match
+    that DENSE never pooled is still surfaced — the docket / case-name / statute case.
+    """
+    from rag_api import retrieval, nvidia_client
+
+    # B.pdf (chunk 5) literally contains "honduras" but dense returns only A.pdf + a decoy.
+    fake_meta = pd.DataFrame({
+        "chunk_id":         list(range(6)),
+        "case_link":        ["A.pdf"] + ["decoy.pdf"] * 4 + ["B.pdf"],
+        "text":             [
+            "the court denied the petition for review",
+            "credibility findings against the petitioner",
+            "withholding of removal granted in part",
+            "internal relocation reasonable in this case",
+            "the government appealed the immigration ruling",
+            "natives and citizens of Honduras seek asylum",   # only B.pdf has the keyword
+        ],
+        "page": [1] * 6, "case_pub_status": [""] * 6, "case_disposition": [""] * 6,
+    })
+
+    class FakeIndex:
+        ntotal = 6
+        def search(self, q, k):
+            # Dense pools A.pdf + a decoy — NOT B.pdf (the keyword case).
+            return np.array([[0.5, 0.45]]), np.array([[0, 1]])
+
+    monkeypatch.setattr(retrieval, "INDEX", FakeIndex())
+    monkeypatch.setattr(retrieval, "META", fake_meta)
+    monkeypatch.setattr(retrieval, "_BM25", None)
+    monkeypatch.setattr(retrieval, "_BM25_META_ID", None)
+    monkeypatch.setattr(retrieval, "FUSION_METHOD", "union_rrf")
+    monkeypatch.setattr(nvidia_client, "embed_query",
+                        lambda text: np.zeros((1, 2048), dtype=np.float32))
+
+    hits = retrieval.search_with_rerank("Honduras", fetch_k=2, return_k=3)
+    links = [h["case_link"] for h in hits]
+    # B.pdf was NOT in the dense pool, but BM25's own candidate surfaces it.
+    assert "B.pdf" in links
+    b_hit = next(h for h in hits if h["case_link"] == "B.pdf")
+    assert b_hit["bm25_score"] > 0 and b_hit["dense_score"] == 0.0  # BM25-only candidate
 
 
 # ── Latency instrumentation ─────────────────────────────────────────────────
@@ -523,6 +569,11 @@ def _wire_fake_pipeline(monkeypatch):
     monkeypatch.setattr(retrieval, "_BM25", None)
     monkeypatch.setattr(retrieval, "_BM25_META_ID", None)
     monkeypatch.setattr(nvidia_client, "rerank", lambda q, passages: [0.6, 0.5])
+    # These latency tests exercise the FULL instrumented pipeline (embed → dense →
+    # rerank → bm25 → fusion). The default is now union_rrf (which bypasses rerank),
+    # so pin the rerank+blend path that emits every timing stage.
+    monkeypatch.setattr(retrieval, "USE_RERANKER", True)
+    monkeypatch.setattr(retrieval, "FUSION_METHOD", "blend")
 
 
 def _post(path, monkeypatch, **json_body):
@@ -738,9 +789,10 @@ def test_health_exposes_runtime_config(monkeypatch):
         body = client.get("/health").json()
     for key in ("vector_store", "embedder", "use_reranker", "fusion_method", "embedding_dim"):
         assert key in body
-    # defaults (no load) preserve T1: rerank on, blend; embedder falls back to NIM model
+    # defaults (no load): rerank on; fusion = union_rrf (always-on dense+BM25 union,
+    # the chosen Option-2 architecture); embedder falls back to NIM model
     assert body["use_reranker"] is True
-    assert body["fusion_method"] == "blend"
+    assert body["fusion_method"] == "union_rrf"
     assert body["embedder"].startswith("nvidia/")
 
 
