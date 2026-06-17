@@ -70,6 +70,8 @@ def health() -> HealthResponse:
         embedder=retrieval.embedder_name(),
         use_reranker=retrieval.USE_RERANKER,
         fusion_method=retrieval.FUSION_METHOD,
+        bm25_backend=retrieval.BM25_BACKEND,
+        confidence_enabled=cross_encoder.enabled(),
         embed_model=nvidia_client.EMBED_MODEL,
         rerank_model=nvidia_client.RERANK_MODEL,
         gen_model=nvidia_client.GEN_MODEL,

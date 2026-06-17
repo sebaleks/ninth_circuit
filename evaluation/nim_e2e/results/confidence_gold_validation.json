@@ -1,0 +1,40 @@
+{
+  "thematic": {
+    "n": 22,
+    "top_color": {
+      "green": 21,
+      "red": 1
+    },
+    "refused": 0,
+    "ce_fired_pct": 86.4,
+    "median_latency_ms": 1005,
+    "top_red_examples": [
+      [
+        "forced gang recruitment and resistance",
+        0.297
+      ]
+    ]
+  },
+  "citation": {
+    "n": 75,
+    "top_color": {
+      "green": 48,
+      "yellow": 27
+    },
+    "refused": 0,
+    "ce_fired_pct": 0.0,
+    "median_latency_ms": 578,
+    "top_red_examples": []
+  },
+  "named_authority": {
+    "n": 43,
+    "top_color": {
+      "green": 31,
+      "yellow": 12
+    },
+    "refused": 0,
+    "ce_fired_pct": 0.0,
+    "median_latency_ms": 610,
+    "top_red_examples": []
+  }
+}
