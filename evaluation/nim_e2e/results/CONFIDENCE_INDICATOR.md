@@ -39,8 +39,20 @@ Env vars (in addition to the live VECTOR_STORE=qdrant / QDRANT_COLLECTION / INDE
 BM25_BACKEND=qdrant
 QDRANT_SPARSE_COLLECTION=asylum_cases_nim2048_full_sparse
 CONFIDENCE_ENABLED=true
+CE_REFUSE_ENABLED=true          # optional: CE-based abstention (see below); CE_REFUSE_FLOOR default 0.0
 # already set: UNION_TOPK=100, RRF_K=60
 ```
+
+### CE-based refusal (CE_REFUSE_ENABLED, floor 0)
+The 0.15 dense floor is corpus-size-dependent: as the corpus grew (≈284→30,021 chunks), the
+nearest-neighbor cosine to *any* query rose, so corpus-vocabulary nonsense ("george washington
+denied slavery", top cosine 0.178) now clears 0.15 and is served. The CE refusal closes that gap:
+for a **band [0.15,0.50], non-lookup** query, refuse when even the BEST result is an active
+non-match (`max CE < CE_REFUSE_FLOOR`, default **0.0**). Lookups bypass; confident (dense>0.50) and
+dense-refused (<0.15) queries are untouched. On the probe set, floor 0 refuses ~33% of nonsense at
+**0% real-query false-refuse** (real queries keep ≥1.0 CE margin); the clever adversaries that score
+positive are left to the RED indicator rather than a hard refuse. Separate flag so it can be killed
+instantly without losing the coloring. Applies to both /search and /chat.
 Verify via `/health`: `bm25_backend=qdrant`, `confidence_enabled=true`. The L-6 CE + Qdrant/bm25 models
 are **pre-baked into the Docker image** (`ENV FASTEMBED_CACHE_PATH=/app/.fastembed_cache` + a build-time
 `RUN`, ~88 MB on disk) so there is **no first-query HuggingFace download** and no runtime HF dependency.

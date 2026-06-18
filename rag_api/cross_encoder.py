@@ -29,6 +29,41 @@ def enabled() -> bool:
     return os.environ.get("CONFIDENCE_ENABLED", "false").strip().lower() == "true"
 
 
+def refuse_enabled() -> bool:
+    """CE-based abstention flag — separate from coloring so refusal can be toggled independently
+    (and instantly killed). Requires CONFIDENCE_ENABLED too, since it reads the CE scores."""
+    return os.environ.get("CE_REFUSE_ENABLED", "false").strip().lower() == "true"
+
+
+def should_refuse(query: str, hits: list[dict]) -> bool:
+    """CE abstention for the dense-uncertain band — the gap the 0.15 dense floor can't close.
+
+    Refuse a band [0.15, 0.50], non-lookup query when even its BEST result is an active non-match
+    (max CE < CE_REFUSE_FLOOR, default 0.0) — i.e. the cross-encoder scores every returned passage
+    as "does not answer this query". This catches corpus-vocabulary nonsense whose top dense cosine
+    happens to clear 0.15 ("george washington denied slavery" → max CE ≈ −10) without the dense-only
+    false-refuses a higher cosine threshold would cause. Floor 0 is conservative: real in-corpus
+    queries keep ≥ ~1.0 of margin (their best passage scores well above 0), so this should not
+    refuse real queries — while leaving the genuinely-hard adversaries (which score positive) to the
+    RED indicator rather than a hard refuse.
+
+    No-op unless CE_REFUSE_ENABLED. Never fires for: lookups (routed around the CE), confident
+    queries (top dense > 0.50), dense-already-refused queries (< 0.15, the dense gate owns those),
+    or when the CE didn't run. Caller must have run annotate() first so ce_score is populated.
+    """
+    if not refuse_enabled() or not hits or conf.is_lookup(query):
+        return False
+    dense = [float(h.get("dense_score", h.get("score", 0.0))) for h in hits]
+    top = max(dense)
+    if top < conf.BAND_LO or top > conf.BAND_HI:  # <0.15 → dense gate; >0.50 → confident, serve
+        return False
+    ce = [h["ce_score"] for h in hits if h.get("ce_score") is not None]
+    if not ce:  # CE didn't fire — don't refuse on a missing signal
+        return False
+    floor = float(os.environ.get("CE_REFUSE_FLOOR", "0.0"))
+    return max(ce) < floor
+
+
 def _ce():
     """Lazy CE singleton — built on first annotate(), never at import (memory)."""
     global _CE

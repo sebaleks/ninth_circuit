@@ -72,6 +72,7 @@ def health() -> HealthResponse:
         fusion_method=retrieval.FUSION_METHOD,
         bm25_backend=retrieval.BM25_BACKEND,
         confidence_enabled=cross_encoder.enabled(),
+        ce_refuse_enabled=cross_encoder.refuse_enabled(),
         embed_model=nvidia_client.EMBED_MODEL,
         rerank_model=nvidia_client.RERANK_MODEL,
         gen_model=nvidia_client.GEN_MODEL,
@@ -118,6 +119,13 @@ def search(req: SearchRequest, include_timings: bool = False) -> SearchResponse:
                     cross_encoder.annotate(req.query, hits)
             except Exception:  # noqa: BLE001 — confidence is additive; degrade gracefully
                 pass
+            # CE-based abstention (env-gated): catches band corpus-vocabulary nonsense whose top
+            # dense cosine clears 0.15 but whose best cross-encoder score is a non-match (<floor).
+            if cross_encoder.should_refuse(req.query, hits):
+                latency_ms = int((time.perf_counter() - t0) * 1000)
+                report = _finalize(t, t0, "search")
+                return SearchResponse(hits=[], latency_ms=latency_ms, refused=True,
+                                      timings=report if include_timings else None)
 
         latency_ms = int((time.perf_counter() - t0) * 1000)
         report = _finalize(t, t0, "search")
@@ -153,6 +161,21 @@ def chat(req: ChatRequest, include_timings: bool = False) -> ChatResponse:
                 refused=True,
                 timings=report if include_timings else None,
             )
+
+        # CE-based abstention (env-gated): mirror /search so the chatbot refuses the same band
+        # corpus-vocabulary nonsense the dense floor misses, before paying for generation.
+        if cross_encoder.enabled():
+            try:
+                cross_encoder.annotate(req.question, hits)
+            except Exception:  # noqa: BLE001 — degrade gracefully
+                pass
+            if cross_encoder.should_refuse(req.question, hits):
+                report = _finalize(t, t0, "chat")
+                return ChatResponse(
+                    answer=guardrails.REFUSAL_TEXT, citations=[],
+                    latency_ms=int((time.perf_counter() - t0) * 1000), refused=True,
+                    timings=report if include_timings else None,
+                )
 
         try:
             answer, used_hits = generation.answer_with_citations(req.question, hits)

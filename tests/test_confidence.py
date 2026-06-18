@@ -89,3 +89,52 @@ def test_annotate_skips_ce_when_no_in_band_hit(monkeypatch):
     cross_encoder.annotate("a conceptual question about persecution", hits)
     assert hits[0]["ce_score"] is None
     assert hits[0]["confidence"]["color"] == "green"   # dense-only, High
+
+
+# ── CE-based refusal gate (floor 0) ──────────────────────────────────────────
+
+def test_refuse_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("CE_REFUSE_ENABLED", raising=False)
+    hits = [{"dense_score": 0.178, "ce_score": -10.0, "case_link": "x"}]
+    assert cross_encoder.should_refuse("george washington denied slavery", hits) is False
+
+
+def test_refuse_band_nonsense(monkeypatch):
+    monkeypatch.setenv("CE_REFUSE_ENABLED", "true")
+    # 'george washington denied slavery'-like: top dense barely clears 0.15, best CE is a non-match
+    hits = [{"dense_score": 0.178, "ce_score": -10.5, "case_link": "x"},
+            {"dense_score": 0.0, "ce_score": -10.3, "case_link": "y"}]
+    assert cross_encoder.should_refuse("george washington denied slavery", hits) is True
+
+
+def test_refuse_not_triggered_for_real_query(monkeypatch):
+    monkeypatch.setenv("CE_REFUSE_ENABLED", "true")
+    # a real query has at least one strong passage (best CE > 0) even if a lower one is negative
+    hits = [{"dense_score": 0.30, "ce_score": 3.8, "case_link": "x"},
+            {"dense_score": 0.28, "ce_score": -2.0, "case_link": "y"}]
+    assert cross_encoder.should_refuse("nexus between persecution and a protected ground", hits) is False
+
+
+def test_refuse_skips_lookups(monkeypatch):
+    monkeypatch.setenv("CE_REFUSE_ENABLED", "true")
+    hits = [{"dense_score": 0.28, "ce_score": None, "case_link": "x/23-2038.pdf"}]
+    assert cross_encoder.should_refuse("what was the disposition in 23-2038", hits) is False
+
+
+def test_refuse_skips_confident_queries(monkeypatch):
+    monkeypatch.setenv("CE_REFUSE_ENABLED", "true")
+    hits = [{"dense_score": 0.62, "ce_score": -5.0, "case_link": "x"}]  # top dense > 0.50 → serve
+    assert cross_encoder.should_refuse("a confident in-corpus query", hits) is False
+
+
+def test_refuse_noop_when_ce_absent(monkeypatch):
+    monkeypatch.setenv("CE_REFUSE_ENABLED", "true")
+    hits = [{"dense_score": 0.30, "ce_score": None, "case_link": "x"}]  # CE didn't run
+    assert cross_encoder.should_refuse("a conceptual question", hits) is False
+
+
+def test_refuse_custom_floor(monkeypatch):
+    monkeypatch.setenv("CE_REFUSE_ENABLED", "true")
+    monkeypatch.setenv("CE_REFUSE_FLOOR", "1.0")
+    hits = [{"dense_score": 0.30, "ce_score": 0.5, "case_link": "x"}]  # 0.5 < floor 1.0 → refuse
+    assert cross_encoder.should_refuse("a conceptual question", hits) is True
