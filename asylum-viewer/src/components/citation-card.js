@@ -2,10 +2,13 @@
 
 // Semantic confidence colors, kept visually distinct from the brand accent (red #E3120B).
 // Each entry maps a confidence.color name -> { text, dot } Tailwind classes.
+// `grey` is the "Not relevant" verification state — the whole card is also
+// de-emphasized (see `muted` below).
 const CONFIDENCE_CLASSES = {
   green: { text: 'text-emerald-600', dot: 'bg-emerald-500' },
   yellow: { text: 'text-amber-600', dot: 'bg-amber-500' },
   red: { text: 'text-rose-600', dot: 'bg-rose-500' },
+  grey: { text: 'text-muted', dot: 'bg-muted' },
 }
 
 export default function CitationCard({ citation, index }) {
@@ -16,13 +19,18 @@ export default function CitationCard({ citation, index }) {
   // dense_score is the meaningful cosine relevance; fall back to the legacy RRF rank score.
   const relevance = Number.isFinite(dense_score) ? dense_score : score
   const confidenceClasses = confidence ? (CONFIDENCE_CLASSES[confidence.color] ?? CONFIDENCE_CLASSES.yellow) : null
+  // "Not relevant" results stay visible but de-emphasized (color alone is never
+  // the only signal — the "Not relevant" label is shown too).
+  const muted = confidence?.color === 'grey' || confidence?.treatment === 'grey'
 
   return (
     <a
       href={case_link}
       target="_blank"
       rel="noopener noreferrer"
-      className="block border border-border bg-filter-bg hover:border-accent transition-colors p-3 text-xs"
+      className={`block border border-border bg-filter-bg hover:border-accent transition-colors p-3 text-xs ${
+        muted ? 'opacity-50 hover:opacity-100' : ''
+      }`}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">
