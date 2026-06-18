@@ -69,8 +69,7 @@ class HealthResponse(BaseModel):
     use_reranker: bool | None = None
     fusion_method: str | None = None  # "blend" | "rrf" | "union_rrf"
     bm25_backend: str | None = None   # "memory" | "qdrant" (Path B, off-box)
-    confidence_enabled: bool | None = None  # confidence-indicator feature flag
-    ce_refuse_enabled: bool | None = None   # CE-based abstention flag
+    ce_loaded: bool | None = None     # is the opt-in Cross-Verify CE model resident right now?
     embed_model: str                  # NIM embed model constant (rerank/gen stay on NIM)
     rerank_model: str
     gen_model: str

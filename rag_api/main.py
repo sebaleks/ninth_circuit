@@ -8,14 +8,17 @@ Endpoints:
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
-from rag_api import cross_encoder, generation, guardrails, nvidia_client, retrieval, timing
+from rag_api import ce_verify, generation, guardrails, nvidia_client, retrieval, timing
 from rag_api.models import (
     ChatRequest,
     ChatResponse,
@@ -71,8 +74,7 @@ def health() -> HealthResponse:
         use_reranker=retrieval.USE_RERANKER,
         fusion_method=retrieval.FUSION_METHOD,
         bm25_backend=retrieval.BM25_BACKEND,
-        confidence_enabled=cross_encoder.enabled(),
-        ce_refuse_enabled=cross_encoder.refuse_enabled(),
+        ce_loaded=ce_verify.is_loaded(),
         embed_model=nvidia_client.EMBED_MODEL,
         rerank_model=nvidia_client.RERANK_MODEL,
         gen_model=nvidia_client.GEN_MODEL,
@@ -110,23 +112,8 @@ def search(req: SearchRequest, include_timings: bool = False) -> SearchResponse:
             return SearchResponse(hits=[], latency_ms=latency_ms, refused=True,
                                   timings=report if include_timings else None)
 
-        # Confidence indicator (demo feature, env-gated). Annotates each surviving hit with
-        # dense_score + ce_score + a green/yellow/red confidence. Never breaks search: a CE
-        # failure (e.g. model fetch) falls through to an un-annotated response.
-        if cross_encoder.enabled():
-            try:
-                with timing.timer("confidence_ce"):
-                    cross_encoder.annotate(req.query, hits)
-            except Exception:  # noqa: BLE001 — confidence is additive; degrade gracefully
-                pass
-            # CE-based abstention (env-gated): catches band corpus-vocabulary nonsense whose top
-            # dense cosine clears 0.15 but whose best cross-encoder score is a non-match (<floor).
-            if cross_encoder.should_refuse(req.query, hits):
-                latency_ms = int((time.perf_counter() - t0) * 1000)
-                report = _finalize(t, t0, "search")
-                return SearchResponse(hits=[], latency_ms=latency_ms, refused=True,
-                                      timings=report if include_timings else None)
-
+        # The cross-encoder is intentionally OUT of this default path now: it's opt-in via
+        # /verify/* (load on Enable, score on Cross Verify, SSE-streamed). /search stays ~255 ms.
         latency_ms = int((time.perf_counter() - t0) * 1000)
         report = _finalize(t, t0, "search")
         return SearchResponse(
@@ -162,21 +149,6 @@ def chat(req: ChatRequest, include_timings: bool = False) -> ChatResponse:
                 timings=report if include_timings else None,
             )
 
-        # CE-based abstention (env-gated): mirror /search so the chatbot refuses the same band
-        # corpus-vocabulary nonsense the dense floor misses, before paying for generation.
-        if cross_encoder.enabled():
-            try:
-                cross_encoder.annotate(req.question, hits)
-            except Exception:  # noqa: BLE001 — degrade gracefully
-                pass
-            if cross_encoder.should_refuse(req.question, hits):
-                report = _finalize(t, t0, "chat")
-                return ChatResponse(
-                    answer=guardrails.REFUSAL_TEXT, citations=[],
-                    latency_ms=int((time.perf_counter() - t0) * 1000), refused=True,
-                    timings=report if include_timings else None,
-                )
-
         try:
             answer, used_hits = generation.answer_with_citations(req.question, hits)
         except Exception as e:  # noqa: BLE001
@@ -196,3 +168,92 @@ def chat(req: ChatRequest, include_timings: bool = False) -> ChatResponse:
         raise
     finally:
         timing.reset()
+
+
+# ── Result Cross Verification (opt-in, streaming) ────────────────────────────
+# The CE is CPU-bound (~1 s/pair) on the free tier, so it is OFF the default path: loaded on
+# Enable, scored on Cross Verify with each result streamed via SSE, halted by client disconnect.
+
+def _sse(obj: dict) -> str:
+    """Format one server-sent event."""
+    return f"data: {json.dumps(obj)}\n\n"
+
+
+@app.post("/verify/enable")
+async def verify_enable() -> dict:
+    """Lazy-load the CE model (the one-time memory + load-time cost). Idempotent."""
+    try:
+        await run_in_threadpool(ce_verify.load)  # blocking load off the event loop
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"CE load failed: {e}") from e
+    return {"loaded": ce_verify.is_loaded()}
+
+
+@app.post("/verify/disable")
+async def verify_disable() -> dict:
+    """Unload the CE model and free its memory (Disable / page-close)."""
+    ce_verify.unload()
+    return {"loaded": ce_verify.is_loaded()}
+
+
+@app.get("/verify/stream")
+async def verify_stream(request: Request, query: str, k: int = 5) -> StreamingResponse:
+    """Stream a calibrated label per result (rank order) for the CURRENT query, one at a time.
+
+    Re-runs the same retrieval (so it scores exactly the post-abstention ranked list), CE-scores
+    each result, and emits an SSE `result` event as each is computed. Greyed ("Not relevant",
+    CE<=0) results trigger backfill to keep ~TARGET_NONGREY non-grey, hard-capped at MAX_SCORE.
+    The loop checks `request.is_disconnected()` BETWEEN each result, so closing the EventSource
+    (Stop / navigate away) halts the scoring and frees the CPU.
+    """
+    async def gen():
+        if not ce_verify.is_loaded():
+            yield _sse({"event": "error", "reason": "not_loaded"})
+            return
+        # Re-run retrieval to get the ranked, post-abstention candidate pool (up to MAX_SCORE).
+        try:
+            hits = await run_in_threadpool(
+                retrieval.search_with_rerank, query,
+                max(20, ce_verify.MAX_SCORE * 2), ce_verify.MAX_SCORE,
+            )
+        except Exception as e:  # noqa: BLE001
+            yield _sse({"event": "error", "reason": f"retrieval_failed: {e}"})
+            return
+        dense_scores = [float(h.get("dense_score", h.get("score", 0.0))) for h in hits]
+        if not hits or guardrails.should_refuse(dense_scores):
+            yield _sse({"event": "done", "reason": "refused", "scored": 0})
+            return
+        if not ce_verify.applies(query, hits):
+            yield _sse({"event": "not_applicable", "reason": "lookup_or_high_confidence"})
+            yield _sse({"event": "done", "scored": 0})
+            return
+
+        nongrey = 0
+        scored = 0
+        for rank, h in enumerate(hits, start=1):
+            if await request.is_disconnected():
+                break  # HALT — client closed the stream; stop burning CPU
+            if scored >= ce_verify.MAX_SCORE:
+                break  # hard cap
+            if rank > k and nongrey >= ce_verify.TARGET_NONGREY:
+                break  # initial k scored AND backfill target met
+            ce = await run_in_threadpool(ce_verify.score, query, h.get("snippet", "") or "")
+            scored += 1
+            dense = float(h.get("dense_score", h.get("score", 0.0)))
+            lab = ce_verify.label_for(dense, ce)
+            if lab["color"] != "grey":
+                nongrey += 1
+            yield _sse({
+                "event": "result", "rank": rank, "result_id": h.get("case_link"),
+                "label": lab["label"], "color": lab["color"], "treatment": lab["treatment"],
+                "ce_score": round(ce, 3), "dense_score": round(dense, 3),
+                "case_link": h.get("case_link"), "snippet": h.get("snippet"),
+                "page": h.get("page"), "case_disposition": h.get("case_disposition", ""),
+                "case_pub_status": h.get("case_pub_status", ""),
+            })
+        yield _sse({"event": "done", "scored": scored, "nongrey": nongrey})
+
+    return StreamingResponse(
+        gen(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
